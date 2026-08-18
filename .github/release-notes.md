@@ -2,13 +2,21 @@
 
 Sistema de Text-to-Speech leve, open source e em CPU — **fala qualquer texto em Português do Brasil**. Não precisa de GPU, nem PyTorch, nem serviços pagos.
 
-## ⚡ Teste rápido (uma linha — Linux/macOS)
+## ⚡ Teste rápido (uma linha)
 
+**Linux / macOS:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.1.0/scripts/install.sh | bash
 ```
 
+**Windows** (PowerShell):
+```powershell
+irm https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.1.0/scripts/install.ps1 | iex
+```
+
 Isso instala o LunaSpeech e baixa a voz pt-BR (faber), depois fala uma frase de teste. O áudio fica em `~/lunaspeech_teste.wav`.
+
+> **Windows:** a fonemização usa o binário `espeak-ng` (o `piper-phonemize` não tem wheel para Windows). O `install.ps1` tenta instalar o espeak-ng automaticamente (winget/choco); se não conseguir, instale manualmente via <https://github.com/espeak-ng/espeak-ng/releases>.
 
 ## 🚀 Uso
 

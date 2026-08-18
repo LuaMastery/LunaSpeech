@@ -1,13 +1,22 @@
-# LunaSpeech — dependências (leve, sem GPU/PyTorch no caminho de inferência)
-# Fonemização espeak-ng empacotada (inclui espeak-ng-data)
-piper-phonemize>=1.1.0
-# Inferência neural VITS/ONNX em CPU
-onnxruntime>=1.16
-# Áudio (leitura/escrita WAV)
-soundfile>=0.12
+# LunaSpeech — dependências
+
+# --- Essenciais (multiplataforma: Windows, macOS, Linux) ---
+onnxruntime>=1.16      # inferência VITS/ONNX em CPU
+soundfile>=0.12        # leitura/escrita de WAV (libsndfile embutido)
 numpy>=1.24
 
-# Opcionais (Fase 3+):
-# fastapi>=0.110      # servidor HTTP
+# --- Fonemização (escolha UMA das opções abaixo) ---
+#
+# OPÇÃO A — Linux / macOS (recomendada): pacote piper-phonemize, que já traz o
+# espeak-ng-data embutido. (NÃO tem wheel para Windows.)
+piper-phonemize>=1.1.0
+#
+# OPÇÃO B — Windows (ou qualquer sistema): instale o binário espeak-ng do sistema
+# e o LunaSpeech o detecta e usa automaticamente:
+#   winget install espeak-ng.at cooledit  (ou)  choco install espeak-ng
+#   (download manual: https://github.com/espeak-ng/espeak-ng/releases)
+#
+# --- Opcionais (Fase 3+) ---
+# fastapi>=0.110
 # uvicorn[standard]>=0.29
-# huggingface-hub>=0.20  # download conveniente de vozes extras
+# huggingface-hub>=0.20

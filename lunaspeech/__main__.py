@@ -86,7 +86,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     miss = result.missing_phonemes or {}
     extra = f"  (fonemas não reconhecidos: {miss})" if miss else ""
     print(f"✓ Áudio gerado: {out_path}  ({dur:.2f}s, {result.sample_rate} Hz, voz={args.voice}){extra}")
-    print(f"  Para ouvir: aplay {out_path}   # Linux")
+    # dica de reprodução por sistema
+    import platform
+    sysname = platform.system()
+    if sysname == "Windows":
+        play_hint = f'start "" "{out_path}"'
+    elif sysname == "Darwin":
+        play_hint = f'afplay "{out_path}"'
+    else:
+        play_hint = f"aplay {out_path}"
+    print(f"  Para ouvir: {play_hint}")
     return 0
 
 

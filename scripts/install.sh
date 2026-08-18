@@ -38,6 +38,9 @@ python -m pip install --upgrade pip >/dev/null
 # 3) instala o LunaSpeech a partir do release (tag) no GitHub
 echo "→  Instalando lunaspeech ${VERSION}..."
 python -m pip install --quiet "git+https://github.com/${REPO}.git@${VERSION}"
+# fonemização: piper-phonemize traz o espeak-ng embutido (Linux/macOS)
+python -m pip install --quiet piper-phonemize || \
+  echo "   (aviso: piper-phonemize não instalado — instale o espeak-ng do sistema)"
 
 # 4) baixa a voz pt-BR (faber): primeiro do release do GitHub; se não houver, do HuggingFace
 MODELS_DIR="${LUNASPEECH_MODELS:-$HOME/.local/share/lunaspeech/models}"
