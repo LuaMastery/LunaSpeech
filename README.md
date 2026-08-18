@@ -21,7 +21,7 @@ TEXTO → [front-end pt-BR] → [fonemização espeak-ng] → [VITS/ONNX em CPU]
 
 **Linux / macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.1.0/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.2.0/scripts/install.sh | bash
 ```
 
 **Windows** (PowerShell):
@@ -56,6 +56,8 @@ python -m lunaspeech "Texto lento." --rate 0.8 --out lento.wav
 python -m lunaspeech --list-voices                      # ver vozes disponíveis
 echo "Texto do stdin" | python -m lunaspeech
 ```
+
+> 💡 **Menu interativo:** digite só `lunaspeech` (sem texto) para abrir o painel com tema noturno 🌙 — **testar fala**, **buscar atualizações**, **reinstalar** e **listar vozes**.
 
 ### Python
 ```python
@@ -92,11 +94,12 @@ Na primeira execução, a voz é baixada automaticamente para `~/.local/share/lu
 - 🎙️ **Fase 4** — Nossa própria voz pt-BR ("voz Luna")
 - 🚀 **Fase 5** — Recursos avançados (multi-idioma, clonagem, motor Kokoro)
 
-## ✅ Status da Fase 1 (testado)
-- Motor standalone `PiperOnnxEngine`: fonemas → IDs → ONNX → WAV **validado com modelo real** (áudio audível).
-- CLI e API Python funcionando; **8 testes** (pytest) passando, incluindo integração com modelo real.
-- Fonemização pt-BR e config da voz faber funcionando.
-- *Limitação conhecida do ambiente de desenvolvimento:* este sandbox bloqueia o HuggingFace (de onde vêm os binários `.onnx`), então o áudio pt-BR só é gerado após baixar a voz faber numa máquina com internet — o que o LunaSpeech faz **automaticamente** (`pip install huggingface-hub` opcional; caso o HF esteja indisponível, o próprio erro informa o link para download manual).
+## ✅ Status atual (v0.2.0)
+- **Fase 1 (motor):** `PiperOnnxEngine` (VITS/ONNX standalone em CPU) validado com modelo real; CLI e API Python; **19 testes** pytest passando.
+- **Fase 2 (front-end de texto):** normalização pt-BR — números, decimais, moeda (`R$`), datas, horas, `%`, ordinais, unidades, temperatura, siglas e abreviações.
+- **CLI interativo** com tema noturno: `lunaspeech` abre um painel (testar fala, buscar atualizações, reinstalar, listar vozes).
+- **Multiplataforma:** Linux, macOS e Windows (fonemização plugável: `piper-phonemize` ou binário `espeak-ng`).
+- *Validado pelo usuário no Windows (v0.1.1):* fala pt-BR confirmada. 🎉
 
 ---
 *Projeto em desenvolvimento ativo.*

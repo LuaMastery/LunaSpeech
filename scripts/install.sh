@@ -15,7 +15,17 @@ VERSION="${LUNASPEECH_VERSION:-v0.1.0}"
 PYTHON="${PYTHON:-python3}"
 RELEASE_BASE="https://github.com/${REPO}/releases/download/${VERSION}"
 
-echo "🌙  LunaSpeech ${VERSION} — instalador"
+if [ -t 1 ]; then
+  C_VIOLET='\033[38;5;141m'; C_LUNAR='\033[38;5;117m'; C_GOLD='\033[38;5;221m'
+  C_DIM='\033[2m'; C_GREEN='\033[38;5;114m'; C_OFF='\033[0m'
+else
+  C_VIOLET=''; C_LUNAR=''; C_GOLD=''; C_DIM=''; C_GREEN=''; C_OFF=''
+fi
+
+printf "\n${C_GOLD}  ✦     ·     ✧        ·       ✦   ${C_OFF}\n"
+printf "   🌙   ${C_VIOLET}LunaSpeech${C_OFF}   \n"
+printf "${C_LUNAR}        voz da lua  •  text-to-speech${C_OFF}\n"
+printf "        ${C_GOLD}✦${C_OFF}  ${C_DIM}instalador ${VERSION}${C_OFF}  ${C_GOLD}✦${C_OFF}\n"
 echo "-----------------------------------------"
 
 # 1) verifica Python 3.9+

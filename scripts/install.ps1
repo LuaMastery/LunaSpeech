@@ -13,7 +13,11 @@ $Repo    = "LuaMastery/LunaSpeech"
 $Version = if ($env:LUNASPEECH_VERSION) { $env:LUNASPEECH_VERSION } else { "v0.1.0" }
 $Py      = if ($env:PYTHON) { $env:PYTHON } else { "python" }
 
-Write-Host "🌙  LunaSpeech $Version — instalador (Windows)" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  ✦     ·     ✧        ·       ✦   " -ForegroundColor DarkYellow
+Write-Host "   🌙   " -NoNewline; Write-Host "LunaSpeech" -ForegroundColor Magenta
+Write-Host "        voz da lua  •  text-to-speech" -ForegroundColor Cyan
+Write-Host "        ✦  instalador $Version  ✦" -ForegroundColor DarkYellow
 Write-Host "-----------------------------------------"
 
 # 1) verifica Python 3.9+
