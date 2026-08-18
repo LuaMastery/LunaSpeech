@@ -1,0 +1,22 @@
+# Dependências de desenvolvimento / artefatos pesados
+models/
+*.wav
+*.mp3
+*.ogg
+*.opus
+*.flac
+*.onnx
+!lunaspeech/voices_data/*.onnx.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/

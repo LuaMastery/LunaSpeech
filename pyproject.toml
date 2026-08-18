@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lunaspeech"
+version = "0.1.0"
+description = "🌙 Text-to-Speech leve, open source e em CPU — fala qualquer texto (foco em pt-BR)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "LunaSpeech" }]
+keywords = ["tts", "text-to-speech", "speech-synthesis", "piper", "vits", "onnx", "portuguese", "pt-br"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "piper-phonemize>=1.1.0",
+    "onnxruntime>=1.16",
+    "soundfile>=0.12",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+server = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
+hub = ["huggingface-hub>=0.20"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+lunaspeech = "lunaspeech.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["lunaspeech*"]
+
+[tool.setuptools.package-data]
+lunaspeech = ["voices_data/*.json"]

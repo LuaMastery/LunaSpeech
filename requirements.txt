@@ -1,0 +1,13 @@
+# LunaSpeech — dependências (leve, sem GPU/PyTorch no caminho de inferência)
+# Fonemização espeak-ng empacotada (inclui espeak-ng-data)
+piper-phonemize>=1.1.0
+# Inferência neural VITS/ONNX em CPU
+onnxruntime>=1.16
+# Áudio (leitura/escrita WAV)
+soundfile>=0.12
+numpy>=1.24
+
+# Opcionais (Fase 3+):
+# fastapi>=0.110      # servidor HTTP
+# uvicorn[standard]>=0.29
+# huggingface-hub>=0.20  # download conveniente de vozes extras
