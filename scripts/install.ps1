@@ -80,9 +80,16 @@ Get-VoiceFile "pt_BR-faber-medium.onnx.json"
 $Teste = Join-Path $HOME "lunaspeech_teste.wav"
 Write-Host "→  Testando fala..."
 & "$Venv\Scripts\python.exe" -m lunaspeech "Olá! O sistema de fala LunaSpeech está funcionando." --out "$Teste"
+$testOk = $LASTEXITCODE -eq 0
 
 Write-Host "-----------------------------------------"
-Write-Host "✅  Pronto!" -ForegroundColor Green
+if ($testOk) {
+    Write-Host "✅  Pronto!" -ForegroundColor Green
+} else {
+    Write-Host "⚠️  Instalação concluída, mas o teste de fala falhou." -ForegroundColor Yellow
+    Write-Host "    Verifique se o espeak-ng está no PATH (reabra o PowerShell após instalá-lo)."
+    Write-Host "    Rode novamente: lunaspeech `"texto`"  e veja a mensagem de erro."
+}
 Write-Host ""
 Write-Host "   Para usar (ative o ambiente antes):"
 Write-Host "     $Venv\Scripts\Activate.ps1"

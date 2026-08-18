@@ -62,14 +62,20 @@ def _phonemize_with_espeak_cli(text: str, voice: str) -> List[List[str]]:
             "      Linux   : sudo apt install espeak-ng\n"
             "      manual  : https://github.com/espeak-ng/espeak-ng/releases"
         )
+    # Texto via stdin (evita problemas de code page/escape no argv do Windows).
+    # Saída decodificada como UTF-8: o espeak-ng emite IPA em UTF-8 (ˈ, ə, ̃...),
+    # e no Windows o codec padrão (cp1252) quebraria a leitura.
     result = subprocess.run(
-        [binary, "-v", voice, "-q", "--ipa", text],
+        [binary, "-v", voice, "-q", "--ipa"],
+        input=text,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     sentences: List[List[str]] = []
-    for line in result.stdout.splitlines():
+    for line in (result.stdout or "").splitlines():
         line = line.strip()
         if not line:
             continue
