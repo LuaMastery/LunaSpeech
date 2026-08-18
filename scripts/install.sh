@@ -37,10 +37,14 @@ fi
   echo "❌  LunaSpeech precisa de Python 3.9+." >&2; exit 1; }
 echo "✓  Python: $("$PYTHON" -V)"
 
-# 2) ambiente virtual isolado
+# 2) ambiente virtual isolado (reusa se já existir)
 VENV="${VENV:-$HOME/.lunaspeech-venv}"
-echo "→  Criando ambiente virtual em: $VENV"
-"$PYTHON" -m venv "$VENV"
+if [ -x "$VENV/bin/python" ]; then
+    echo "→  Reusando ambiente virtual existente: $VENV"
+else
+    echo "→  Criando ambiente virtual em: $VENV"
+    "$PYTHON" -m venv "$VENV" || { echo "❌  Falha ao criar o ambiente virtual." >&2; exit 1; }
+fi
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
 python -m pip install --upgrade pip >/dev/null

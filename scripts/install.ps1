@@ -32,11 +32,20 @@ if ([int]$major -lt 3 -or ([int]$major -eq 3 -and [int]$minor -lt 9)) {
 }
 Write-Host "✓  Python: $pv"
 
-# 2) ambiente virtual isolado
+# 2) ambiente virtual isolado (reusa se já existir — evita "permission denied")
 $Venv = if ($env:VENV) { $env:VENV } else { Join-Path $HOME ".lunaspeech-venv" }
-Write-Host "→  Criando ambiente virtual em: $Venv"
-& $Py -m venv "$Venv"
-if ($LASTEXITCODE -ne 0) { Write-Host "❌  Falha ao criar o ambiente virtual." -ForegroundColor Red; exit 1 }
+if (Test-Path "$Venv\Scripts\python.exe") {
+    Write-Host "→  Reusando ambiente virtual existente: $Venv"
+} else {
+    Write-Host "→  Criando ambiente virtual em: $Venv"
+    & $Py -m venv "$Venv"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌  Falha ao criar o ambiente virtual." -ForegroundColor Red
+        Write-Host "    Dica: feche outros terminais/Python e tente de novo, ou use outro caminho:" -ForegroundColor Yellow
+        Write-Host "          `$env:VENV='C:\outro\caminho'; irm ... | iex" -ForegroundColor Yellow
+        exit 1
+    }
+}
 & "$Venv\Scripts\python.exe" -m pip install --upgrade pip --quiet
 
 # 3) instala o LunaSpeech (núcleo multiplataforma) a partir da tag no GitHub
