@@ -5,10 +5,10 @@ Sistema de Text-to-Speech leve, open source e em CPU — **fala qualquer texto e
 ## ⚡ Teste rápido (uma linha — Linux/macOS)
 
 ```bash
-curl -fsSL https://github.com/LuaMastery/LunaSpeech/releases/download/v0.1.0/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.1.0/scripts/install.sh | bash
 ```
 
-Isso instala o LunaSpeech, baixa a voz pt-BR (faber) **direto deste release** e fala uma frase de teste. O áudio fica em `~/lunaspeech_teste.wav`.
+Isso instala o LunaSpeech e baixa a voz pt-BR (faber), depois fala uma frase de teste. O áudio fica em `~/lunaspeech_teste.wav`.
 
 ## 🚀 Uso
 
@@ -29,11 +29,9 @@ tts = LunaSpeech()                       # voz padrão pt-BR (faber)
 tts.say("Bem-vindo ao LunaSpeech!", "saida.wav")
 ```
 
-## 📦 Downloads manuais (neste release)
-- `pt_BR-faber-medium.onnx` — modelo da voz pt-BR masculina (domínio público, CC0)
-- `pt_BR-faber-medium.onnx.json` — configuração da voz
-- `install.sh` — instalador automático
-- `Source code` (zip/tar.gz) — código completo desta versão
+## 📦 Downloads
+- **Source code** (zip/tar.gz) — código completo desta versão (gerado automaticamente pelo GitHub).
+- `scripts/install.sh` — instalador automático (dentro do source, ou via `raw.githubusercontent.com/.../v0.1.0/scripts/install.sh`).
 
 > Se preferir não usar o `install.sh`:
 > ```bash
@@ -41,6 +39,11 @@ tts.say("Bem-vindo ao LunaSpeech!", "saida.wav")
 > pip install "git+https://github.com/LuaMastery/LunaSpeech.git@v0.1.0"
 > lunaspeech "Olá!"   # baixa a voz do HuggingFace na 1ª execução
 > ```
+
+### 💡 Quer a voz pt-BR como arquivo de release (sem depender do HuggingFace)?
+O workflow pronto está em `docs/release-workflow.yml`. Copie para `.github/workflows/release.yml`
+(com permissão de administrador do repo) e ele anexará automaticamente a voz faber
+ao release em futuras tags.
 
 ## ✅ O que funciona nesta versão (Fase 1)
 - **Motor VITS/ONNX standalone** (próprio): fonemas espeak-ng → IDs → inferência em CPU → WAV.

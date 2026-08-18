@@ -20,10 +20,12 @@ TEXTO → [front-end pt-BR] → [fonemização espeak-ng] → [VITS/ONNX em CPU]
 ## ⚡ Teste rápido (via Release do GitHub — Linux/macOS)
 
 ```bash
-curl -fsSL https://github.com/LuaMastery/LunaSpeech/releases/download/v0.1.0/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.1.0/scripts/install.sh | bash
 ```
 
-Uma linha: instala o LunaSpeech, baixa a voz pt-BR (faber) **direto do release** (sem depender do HuggingFace) e fala uma frase de teste. Áudio em `~/lunaspeech_teste.wav`.
+Uma linha: instala o LunaSpeech, baixa a voz pt-BR (faber) e fala uma frase de teste. Áudio em `~/lunaspeech_teste.wav`.
+
+> Release **v0.1.0**: <https://github.com/LuaMastery/LunaSpeech/releases/tag/v0.1.0>
 
 ## 📦 Instalação (manual)
 
