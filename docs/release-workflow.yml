@@ -1,0 +1,56 @@
+name: Release
+
+# "Sistema de release" do LunaSpeech.
+# Ao publicar uma tag v*, este workflow:
+#   1. baixa a voz pt-BR (faber) do HuggingFace (a CI do GitHub tem acesso);
+#   2. cria/atualiza o release do GitHub;
+#   3. anexa a voz (.onnx + .onnx.json) e o instalador como assets.
+# Assim o usuário baixa TUDO do GitHub, sem depender do HuggingFace.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag à qual anexar os assets'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolver tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "name=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Baixar voz pt-BR (faber) do HuggingFace
+        run: |
+          set -e
+          mkdir -p assets
+          BASE="https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/pt/pt_BR/faber/medium"
+          curl -fL "$BASE/pt_BR-faber-medium.onnx"      -o assets/pt_BR-faber-medium.onnx
+          curl -fL "$BASE/pt_BR-faber-medium.onnx.json" -o assets/pt_BR-faber-medium.onnx.json
+          ls -lh assets
+
+      - name: Criar/atualizar release e anexar assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: LunaSpeech ${{ steps.tag.outputs.name }}
+          body_path: .github/release-notes.md
+          files: |
+            assets/pt_BR-faber-medium.onnx
+            assets/pt_BR-faber-medium.onnx.json
+            scripts/install.sh

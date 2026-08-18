@@ -17,7 +17,15 @@ Baseada em **VITS exportado para ONNX** (a mesma abordagem do [Piper](https://gi
 TEXTO → [front-end pt-BR] → [fonemização espeak-ng] → [VITS/ONNX em CPU] → ÁUDIO
 ```
 
-## 📦 Instalação
+## ⚡ Teste rápido (via Release do GitHub — Linux/macOS)
+
+```bash
+curl -fsSL https://github.com/LuaMastery/LunaSpeech/releases/download/v0.1.0/install.sh | bash
+```
+
+Uma linha: instala o LunaSpeech, baixa a voz pt-BR (faber) **direto do release** (sem depender do HuggingFace) e fala uma frase de teste. Áudio em `~/lunaspeech_teste.wav`.
+
+## 📦 Instalação (manual)
 
 ```bash
 # dependências leves (piper-phonemize já traz o espeak-ng-data embutido)
