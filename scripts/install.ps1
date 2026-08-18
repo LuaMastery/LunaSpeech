@@ -1,7 +1,7 @@
 # 🌙 LunaSpeech — instalador rápido para Windows (PowerShell)
 #
 # Uso (uma linha, no PowerShell):
-#   irm https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.1.0/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.2.0/scripts/install.ps1 | iex
 #
 # Pré-requisitos: Python 3.9+ (python.org) e o espeak-ng instalado.
 # O script tenta instalar o espeak-ng via winget/choco se faltar.
@@ -10,7 +10,7 @@
 $ErrorActionPreference = "Stop"
 
 $Repo    = "LuaMastery/LunaSpeech"
-$Version = if ($env:LUNASPEECH_VERSION) { $env:LUNASPEECH_VERSION } else { "v0.1.0" }
+$Version = if ($env:LUNASPEECH_VERSION) { $env:LUNASPEECH_VERSION } else { "v0.2.0" }
 $Py      = if ($env:PYTHON) { $env:PYTHON } else { "python" }
 
 Write-Host ""
