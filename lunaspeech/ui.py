@@ -140,3 +140,100 @@ def pause() -> None:
         input(dim("\n  (Enter para voltar ao menu) "))
     except (EOFError, KeyboardInterrupt):
         print()
+
+
+# --------------------------------------------------------------- limpar tela
+def clear() -> None:
+    """Limpa a tela e o histórico (scrollback); cursor no topo."""
+    if not sys.stdout.isatty():
+        return
+    _enable_vt_windows()
+    sys.stdout.write("\033[2J\033[3J\033[H")
+    sys.stdout.flush()
+
+
+def _stdin_is_interactive() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _read_key() -> str:
+    """Lê uma tecla bruta. Retorna 'up','down','enter','esc' ou o caractere."""
+    if os.name == "nt":
+        import msvcrt
+
+        ch = msvcrt.getch()
+        if ch in (b"\x00", b"\xe0"):  # tecla especial (setas etc.)
+            ch2 = msvcrt.getch()
+            return {72: "up", 80: "down", 75: "left", 77: "right"}.get(ord(ch2), "")
+        v = ord(ch)
+        if v == 13:
+            return "enter"
+        if v == 27:
+            return "esc"
+        return chr(v)
+    else:
+        import termios
+        import tty
+
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            ch = sys.stdin.read(1)
+            if ch == "\x1b":  # sequência de escape (setas)
+                rest = sys.stdin.read(2)
+                return {"[A": "up", "[B": "down", "[C": "right", "[D": "left"}.get(rest, "esc")
+            if ch in ("\r", "\n"):
+                return "enter"
+            return ch
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def select_menu(title: str, options: Sequence[Tuple[str, Optional[str]]],
+                current: int = 0) -> int:
+    """Menu navegável por setas ▲▼ + Enter. Retorna o índice, ou -1 se cancelado.
+
+    ``options``: lista de ``(rótulo, descrição ou None)``. Em terminais não
+    interativos, cai para o menu digitado (``menu`` + ``ask``).
+    """
+    options = list(options)
+    n = len(options)
+    if not _stdin_is_interactive():
+        menu(title, [(str(i + 1), lbl, desc) for i, (lbl, desc) in enumerate(options)])
+        ch = ask()
+        if ch.isdigit() and 1 <= int(ch) <= n:
+            return int(ch) - 1
+        return -1
+
+    print(fg(VIOLET, bold(f"  {title}")))
+    hr()
+
+    def render() -> None:
+        for i, (lbl, desc) in enumerate(options):
+            arrow = fg(GOLD, "❯ ") if i == current else "  "
+            num = fg(GOLD, f"{i + 1} ")
+            label_s = bold(fg(SILVER, lbl)) if i == current else fg(SILVER, lbl)
+            desc_s = f"  {dim(desc)}" if desc else ""
+            sys.stdout.write(f"\r\033[K{arrow}{num}{label_s}{desc_s}\n")
+        sys.stdout.flush()
+
+    render()
+    while True:
+        key = _read_key()
+        if key in ("up", "down"):
+            current = (current - 1) % n if key == "up" else (current + 1) % n
+        elif key == "enter":
+            sys.stdout.write("\n")
+            return current
+        elif key in ("esc", "q"):
+            sys.stdout.write("\n")
+            return -1
+        elif key and key.isdigit() and 1 <= int(key) <= n:
+            sys.stdout.write("\n")
+            return int(key) - 1
+        else:
+            continue
+        # redesenha só o bloco de opções (sobe n linhas)
+        sys.stdout.write(f"\033[{n}A")
+        render()

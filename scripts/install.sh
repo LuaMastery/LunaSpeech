@@ -3,7 +3,7 @@
 # 🌙 LunaSpeech — instalador rápido (Linux / macOS)
 #
 # Uso (uma linha):
-#   curl -fsSL https://github.com/LuaMastery/LunaSpeech/releases/download/v0.2.0/install.sh | bash
+#   curl -fsSL https://github.com/LuaMastery/LunaSpeech/releases/download/v0.3.0/install.sh | bash
 #
 # Ou, para uma versão específica:
 #   LUNASPEECH_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.1.0/scripts/install.sh | bash
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO="LuaMastery/LunaSpeech"
-VERSION="${LUNASPEECH_VERSION:-v0.2.0}"
+VERSION="${LUNASPEECH_VERSION:-v0.3.0}"
 PYTHON="${PYTHON:-python3}"
 RELEASE_BASE="https://github.com/${REPO}/releases/download/${VERSION}"
 
