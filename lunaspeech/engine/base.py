@@ -24,6 +24,7 @@ class SynthesisResult:
     audio: np.ndarray
     sample_rate: int
     missing_phonemes: dict = None  # fonemas não reconhecidos pelo modelo
+    tone: str = "neutro"           # tom detectado/aplicado
 
     @property
     def duration(self) -> float:

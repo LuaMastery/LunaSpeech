@@ -98,13 +98,15 @@ class PiperOnnxEngine(TTSEngine):
         ids: List[int],
         *,
         length_scale: float,
+        noise_scale: Optional[float] = None,
+        noise_w: Optional[float] = None,
         speaker: Optional[str] = None,
     ) -> np.ndarray:
         scales = np.array(
             [
-                self.config.inference.noise_scale,
+                self.config.inference.noise_scale if noise_scale is None else noise_scale,
                 length_scale,                      # controla a velocidade
-                self.config.inference.noise_w,
+                self.config.inference.noise_w if noise_w is None else noise_w,
             ],
             dtype=np.float32,
         )
@@ -128,7 +130,9 @@ class PiperOnnxEngine(TTSEngine):
         self,
         text: str,
         *,
-        length_scale: float = 1.0,
+        length_scale: Optional[float] = None,
+        noise_scale: Optional[float] = None,
+        noise_w: Optional[float] = None,
         speaker: Optional[str] = None,
     ) -> Iterator[AudioChunk]:
         """Sintetiza texto, gerando um :class:`AudioChunk` por sentença.
@@ -138,11 +142,16 @@ class PiperOnnxEngine(TTSEngine):
         text = normalize_text(text)
         if not text:
             return
+        ls = self.config.inference.length_scale if length_scale is None else length_scale
+        ns = self.config.inference.noise_scale if noise_scale is None else noise_scale
+        nw = self.config.inference.noise_w if noise_w is None else noise_w
         for sentence_phonemes in phonemize(text, self.config.espeak_voice):
             ids = self._phonemes_to_ids(sentence_phonemes)
             if len(ids) < 3:
                 continue
-            audio = self._run_session(ids, length_scale=length_scale, speaker=speaker)
+            audio = self._run_session(
+                ids, length_scale=ls, noise_scale=ns, noise_w=nw, speaker=speaker
+            )
             if audio.size:
                 yield AudioChunk(audio=audio, sample_rate=self.sample_rate)
 
@@ -150,13 +159,18 @@ class PiperOnnxEngine(TTSEngine):
         self,
         text: str,
         *,
-        length_scale: float = 1.0,
+        length_scale: Optional[float] = None,
+        noise_scale: Optional[float] = None,
+        noise_w: Optional[float] = None,
         speaker: Optional[str] = None,
     ) -> SynthesisResult:
         """Sintetiza o texto inteiro e devolve o áudio concatenado."""
         chunks = [
             chunk.audio
-            for chunk in self.stream(text, length_scale=length_scale, speaker=speaker)
+            for chunk in self.stream(
+                text, length_scale=length_scale, noise_scale=noise_scale,
+                noise_w=noise_w, speaker=speaker
+            )
         ]
         return SynthesisResult(
             audio=concatenate(chunks),

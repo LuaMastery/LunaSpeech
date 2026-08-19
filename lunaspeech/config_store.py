@@ -14,6 +14,7 @@ from typing import Any, Dict
 DEFAULTS: Dict[str, Any] = {
     "voice": "faber",
     "rate": 1.0,
+    "tone": "auto",
 }
 
 

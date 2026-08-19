@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from . import __version__, config_store, ui, voices
+from . import __version__, config_store, tone as tone_mod, ui, voices
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -30,6 +30,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("-v", "--voice", default=None, help="Voz (padrão: da configuração ou 'faber').")
     p.add_argument("-o", "--out", default="lunaspeech_out.wav", help="Arquivo WAV de saída.")
     p.add_argument("-r", "--rate", type=float, default=None, help="Velocidade (1.3 = mais rápido).")
+    p.add_argument("-t", "--tone", default=None,
+                   choices=tone_mod.ALL_TONES,
+                   help="Tom de voz (auto detecta a emoção do texto).")
     p.add_argument("--models-dir", default=None, help="Diretório de vozes.")
     p.add_argument("--download-only", action="store_true", help="Apenas prepara a voz, sem sintetizar.")
     p.add_argument("-l", "--list-voices", action="store_true", help="Lista as vozes disponíveis.")
@@ -57,9 +60,9 @@ def _play(path: Path) -> bool:
         return False
 
 
-def _synthesize_one(tts, text: str, out: str, rate: float) -> int:
+def _synthesize_one(tts, text: str, out: str, rate: float, tone: str = "auto") -> int:
     from .audio import write_wav
-    result = tts.synthesize(text, rate=rate)
+    result = tts.synthesize(text, rate=rate, tone=tone)
     if result.audio.size == 0:
         ui.error("Nenhum áudio gerado (texto vazio ou sem fonemas reconhecidos).")
         if result.missing_phonemes:
@@ -67,7 +70,8 @@ def _synthesize_one(tts, text: str, out: str, rate: float) -> int:
         return 1
     out_path = write_wav(out, result.audio, result.sample_rate)
     dur = len(result.audio) / result.sample_rate
-    ui.success(f"Áudio gerado: {out_path}  ({dur:.2f}s, {result.sample_rate} Hz)")
+    tom = tone_mod.TONE_LABEL.get(result.tone, result.tone)
+    ui.success(f"Áudio gerado: {out_path}  ({dur:.2f}s, {result.sample_rate} Hz, tom: {tom})")
     if result.missing_phonemes:
         ui.warn(f"fonemas não reconhecidos: {result.missing_phonemes}")
     return 0
@@ -95,7 +99,7 @@ def _startup_status(voice: str, models_dir: Optional[str]) -> None:
 
 
 # ----------------------------------------------------------- painel (menu)
-def _menu_test(voice: str, models_dir: Optional[str], rate: float) -> None:
+def _menu_test(voice: str, models_dir: Optional[str], rate: float, tone: str) -> None:
     text = ui.ask("Texto para falar:")
     if not text:
         ui.warn("Texto vazio.")
@@ -106,7 +110,7 @@ def _menu_test(voice: str, models_dir: Optional[str], rate: float) -> None:
         ui.error(f"Não foi possível carregar a voz '{voice}':\n{exc}")
         return
     out = os.path.join(os.path.expanduser("~"), "lunaspeech_menu.wav")
-    if _synthesize_one(tts, text, out, rate) == 0:
+    if _synthesize_one(tts, text, out, rate, tone) == 0:
         ui.info(f"Salvo em: {out}")
         if ui.ask("Reproduzir agora? [s/N]").lower().startswith("s") and not _play(Path(out)):
             ui.warn("Não consegui reproduzir — abra o arquivo manualmente.")
@@ -161,6 +165,22 @@ def _pick_rate(cfg: dict) -> None:
         ui.success(f"Velocidade padrão: {presets[idx][1]:.2f}×")
 
 
+def _tone_label(value: str) -> str:
+    return "automático" if value == "auto" else tone_mod.TONE_LABEL.get(value, value)
+
+
+def _pick_tone(cfg: dict) -> None:
+    labels = [("automático (detecta emoção)", "auto"), ("neutro", "neutro"),
+              ("amigável", "amigavel"), ("alegre", "alegre"),
+              ("raivoso", "raivoso"), ("triste", "triste")]
+    cur = next((i for i, (_, v) in enumerate(labels) if v == cfg["tone"]), 0)
+    idx = ui.select_menu("Tom de voz padrão", [(lbl, None) for lbl, _ in labels], current=cur)
+    if idx >= 0:
+        cfg["tone"] = labels[idx][1]
+        config_store.save(cfg)
+        ui.success(f"Tom padrão: {labels[idx][0]}")
+
+
 def _menu_settings(cfg: dict) -> dict:
     while True:
         ui.clear()
@@ -168,7 +188,8 @@ def _menu_settings(cfg: dict) -> dict:
         idx = ui.select_menu("Configurações", [
             (f"Voz padrão: {cfg['voice']}", "escolher a voz padrão"),
             (f"Velocidade padrão: {cfg['rate']:.2f}×", "ajustar velocidade"),
-            ("Restaurar padrões", "voz faber, 1.0×"),
+            (f"Tom de voz: {_tone_label(cfg['tone'])}", "auto detecta emoção do texto"),
+            ("Restaurar padrões", None),
             ("Voltar", None),
         ])
         if idx == 0:
@@ -176,6 +197,8 @@ def _menu_settings(cfg: dict) -> dict:
         elif idx == 1:
             _pick_rate(cfg)
         elif idx == 2:
+            _pick_tone(cfg)
+        elif idx == 3:
             cfg = dict(config_store.DEFAULTS)
             config_store.save(cfg)
             ui.success("Configurações restauradas para o padrão.")
@@ -202,7 +225,7 @@ def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -
             break
         try:
             if idx == 0:
-                _menu_test(cfg["voice"], models_dir, cfg["rate"])
+                _menu_test(cfg["voice"], models_dir, cfg["rate"], cfg["tone"])
             elif idx == 1:
                 _menu_check_update()
             elif idx == 2:
@@ -226,6 +249,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     cfg = config_store.load()
     voice = args.voice or cfg["voice"]
     rate = args.rate if args.rate is not None else cfg["rate"]
+    tone = args.tone or cfg["tone"]
 
     if args.list_voices:
         ui.banner(__version__)
@@ -236,6 +260,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     text = args.text
     if text is None:
         if sys.stdin.isatty():
+            cfg["tone"] = tone
             return interactive(voice, rate, args.models_dir, cfg)
         text = sys.stdin.read()
     text = (text or "").strip()
@@ -256,7 +281,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         ui.success(f"Voz '{voice}' pronta.")
         return 0
 
-    rc = _synthesize_one(tts, text, args.out, rate)
+    rc = _synthesize_one(tts, text, args.out, rate, tone)
     if rc == 0:
         s = platform.system()
         hint = (f'start "" "{args.out}"' if s == "Windows"

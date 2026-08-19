@@ -17,6 +17,7 @@ from . import voices
 from .audio import write_wav
 from .engine.base import AudioChunk, SynthesisResult
 from .engine.piper_onnx import PiperOnnxEngine
+from .tone import detect_tone, prosody_for_tone
 
 
 class LunaSpeech:
@@ -45,16 +46,32 @@ class LunaSpeech:
 
     # ------------------------------------------------------------- síntese
     def synthesize(self, text: str, *, rate: float = 1.0,
-                   speaker: Optional[str] = None) -> SynthesisResult:
-        """Sintetiza ``text``. ``rate`` > 1 deixa a fala mais rápida."""
-        length_scale = 1.0 / rate if rate else 1.0
-        return self.engine.synthesize(text, length_scale=length_scale, speaker=speaker)
+                   tone: str = "auto", speaker: Optional[str] = None) -> SynthesisResult:
+        """Sintetiza ``text``. ``rate`` > 1 deixa a fala mais rápida.
+
+        ``tone`` define o tom de voz: ``"auto"`` detecta a emoção do texto
+        (amigável, alegre, raivoso, triste) e ajusta a prosódia; ou um tom fixo.
+        """
+        detected = tone if tone != "auto" else detect_tone(text)
+        p = prosody_for_tone(detected)
+        length_scale = (p["length_scale"] / rate) if rate else p["length_scale"]
+        result = self.engine.synthesize(
+            text, length_scale=length_scale,
+            noise_scale=p["noise_scale"], noise_w=p["noise_w"], speaker=speaker,
+        )
+        result.tone = detected
+        return result
 
     def stream(self, text: str, *, rate: float = 1.0,
-               speaker: Optional[str] = None) -> Iterator[AudioChunk]:
+               tone: str = "auto", speaker: Optional[str] = None) -> Iterator[AudioChunk]:
         """Sintetiza por sentença (para streaming / baixa latência)."""
-        length_scale = 1.0 / rate if rate else 1.0
-        return self.engine.stream(text, length_scale=length_scale, speaker=speaker)
+        detected = tone if tone != "auto" else detect_tone(text)
+        p = prosody_for_tone(detected)
+        length_scale = (p["length_scale"] / rate) if rate else p["length_scale"]
+        return self.engine.stream(
+            text, length_scale=length_scale,
+            noise_scale=p["noise_scale"], noise_w=p["noise_w"], speaker=speaker,
+        )
 
     def say(self, text: str, path: Union[str, Path] = "lunaspeech_out.wav",
             *, rate: float = 1.0) -> Path:
