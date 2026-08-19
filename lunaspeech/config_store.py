@@ -15,6 +15,8 @@ DEFAULTS: Dict[str, Any] = {
     "voice": "faber",
     "rate": 1.0,
     "tone": "auto",
+    "auto_update": True,   # verifica/atualiza sozinho ao abrir o painel
+    "test_only": False,    # só testa: toca o áudio sem salvar arquivo
 }
 
 

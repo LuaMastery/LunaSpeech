@@ -1,10 +1,9 @@
-"""CLI do LunaSpeech — síntese + menu interativo navegável (tema noturno).
+"""CLI do LunaSpeech — painel (setas/clique) + síntese + configurações.
 
 Uso:
     lunaspeech "Olá, mundo!"               # sintetiza texto
-    lunaspeech                             # (sem texto) abre o PAINEL (setas + Enter)
+    lunaspeech                             # abre o PAINEL (setas ▲▼ ou clique 🖱️)
     lunaspeech --voice faber --rate 1.2 -o saida.wav
-    echo "texto" | lunaspeech
     lunaspeech --list-voices
 """
 
@@ -15,6 +14,8 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
+import threading
 from pathlib import Path
 from typing import List, Optional
 
@@ -30,8 +31,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("-v", "--voice", default=None, help="Voz (padrão: da configuração ou 'faber').")
     p.add_argument("-o", "--out", default="lunaspeech_out.wav", help="Arquivo WAV de saída.")
     p.add_argument("-r", "--rate", type=float, default=None, help="Velocidade (1.3 = mais rápido).")
-    p.add_argument("-t", "--tone", default=None,
-                   choices=tone_mod.ALL_TONES,
+    p.add_argument("-t", "--tone", default=None, choices=tone_mod.ALL_TONES,
                    help="Tom de voz (auto detecta a emoção do texto).")
     p.add_argument("--models-dir", default=None, help="Diretório de vozes.")
     p.add_argument("--download-only", action="store_true", help="Apenas prepara a voz, sem sintetizar.")
@@ -60,7 +60,11 @@ def _play(path: Path) -> bool:
         return False
 
 
-def _synthesize_one(tts, text: str, out: str, rate: float, tone: str = "auto") -> int:
+def _tom(tone: str) -> str:
+    return tone_mod.TONE_LABEL.get(tone, tone)
+
+
+def _synthesize_save(tts, text: str, out: str, rate: float, tone: str) -> int:
     from .audio import write_wav
     result = tts.synthesize(text, rate=rate, tone=tone)
     if result.audio.size == 0:
@@ -70,10 +74,30 @@ def _synthesize_one(tts, text: str, out: str, rate: float, tone: str = "auto") -
         return 1
     out_path = write_wav(out, result.audio, result.sample_rate)
     dur = len(result.audio) / result.sample_rate
-    tom = tone_mod.TONE_LABEL.get(result.tone, result.tone)
-    ui.success(f"Áudio gerado: {out_path}  ({dur:.2f}s, {result.sample_rate} Hz, tom: {tom})")
+    ui.success(f"Áudio gerado: {out_path}  ({dur:.2f}s, {result.sample_rate} Hz, tom: {_tom(result.tone)})")
     if result.missing_phonemes:
         ui.warn(f"fonemas não reconhecidos: {result.missing_phonemes}")
+    return 0
+
+
+def _synthesize_play_only(tts, text: str, rate: float, tone: str) -> int:
+    """Modo só teste: toca o áudio sem salvar arquivo (arquivo temporário é apagado)."""
+    from .audio import write_wav
+    result = tts.synthesize(text, rate=rate, tone=tone)
+    if result.audio.size == 0:
+        ui.error("Nenhum áudio gerado (texto vazio ou sem fonemas reconhecidos).")
+        return 1
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    tmp.close()
+    write_wav(tmp.name, result.audio, result.sample_rate)
+    ui.success(f"Modo só teste (tom: {_tom(result.tone)}) — reproduzindo, nada foi salvo.")
+    if result.missing_phonemes:
+        ui.warn(f"fonemas não reconhecidos: {result.missing_phonemes}")
+    _play(Path(tmp.name))
+    try:
+        os.unlink(tmp.name)
+    except OSError:
+        pass
     return 0
 
 
@@ -87,19 +111,33 @@ def _startup_status(voice: str, models_dir: Optional[str]) -> None:
     else:
         ui.success(f"fonetizador: {backend}")
     spec = _v.VOICES.get(voice)
-    present = bool(spec) and (
-        (_v.voice_dir(voice, _v.models_dir(models_dir)) / spec.onnx_name).exists()
-        and (_v.voice_dir(voice, _v.models_dir(models_dir)) / spec.json_name).exists()
-    )
+    d = _v.voice_dir(voice, _v.models_dir(models_dir))
+    present = bool(spec) and (d / spec.onnx_name).exists() and (d / spec.json_name).exists()
     (ui.success if present else ui.warn)(
-        f"voz '{voice}': pronta" if present else f"voz '{voice}': será baixada ao testar fala"
-    )
+        f"voz '{voice}': pronta" if present else f"voz '{voice}': será baixada ao testar fala")
     ui.success(f"versão: {__version__}")
     ui.hr()
 
 
+def _maybe_auto_update() -> None:
+    from . import update
+    try:
+        latest = update.latest_version()
+    except Exception:
+        return
+    if latest and update.is_newer(latest, __version__):
+        ui.step(f"Atualização automática: {__version__} → {latest}")
+        rc = update.self_update(latest)
+        if rc == 0:
+            ui.success("Atualizado! Reinicie o LunaSpeech para concluir.")
+        else:
+            ui.warn(f"Atualização automática falhou (código {rc}).")
+
+
 # ----------------------------------------------------------- painel (menu)
-def _menu_test(voice: str, models_dir: Optional[str], rate: float, tone: str) -> None:
+def _menu_test(voice: str, models_dir: Optional[str], rate: float, tone: str, test_only: bool) -> None:
+    ui.clear()
+    ui.banner(__version__)
     text = ui.ask("Texto para falar:")
     if not text:
         ui.warn("Texto vazio.")
@@ -109,14 +147,19 @@ def _menu_test(voice: str, models_dir: Optional[str], rate: float, tone: str) ->
     except Exception as exc:  # noqa: BLE001
         ui.error(f"Não foi possível carregar a voz '{voice}':\n{exc}")
         return
+    if test_only:
+        _synthesize_play_only(tts, text, rate, tone)
+        return
     out = os.path.join(os.path.expanduser("~"), "lunaspeech_menu.wav")
-    if _synthesize_one(tts, text, out, rate, tone) == 0:
+    if _synthesize_save(tts, text, out, rate, tone) == 0:
         ui.info(f"Salvo em: {out}")
         if ui.ask("Reproduzir agora? [s/N]").lower().startswith("s") and not _play(Path(out)):
             ui.warn("Não consegui reproduzir — abra o arquivo manualmente.")
 
 
 def _menu_check_update() -> None:
+    ui.clear()
+    ui.banner(__version__)
     from . import update
     ui.step("Verificando atualizações...")
     latest = update.latest_version()
@@ -135,6 +178,8 @@ def _menu_check_update() -> None:
 
 
 def _menu_reinstall() -> None:
+    ui.clear()
+    ui.banner(__version__)
     from . import update
     if ui.ask("Reinstalar o LunaSpeech da versão atual? [s/N]").lower().startswith("s"):
         ui.step("Reinstalando...")
@@ -145,16 +190,19 @@ def _menu_reinstall() -> None:
 
 
 def _pick_voice(cfg: dict) -> None:
+    ui.clear(); ui.banner(__version__)
     names = list(voices.VOICES)
     opts = [(name, f"[{voices.VOICES[name].language}]") for name in names]
-    idx = ui.select_menu("Escolha a voz padrão", opts, current=max(names.index(cfg["voice"]), 0) if cfg["voice"] in names else 0)
+    cur = names.index(cfg["voice"]) if cfg["voice"] in names else 0
+    idx = ui.select_menu("Escolha a voz padrão", opts, current=cur)
     if idx >= 0:
         cfg["voice"] = names[idx]
         config_store.save(cfg)
-        ui.success(f"Voz padrão definida: {names[idx]}")
+        ui.success(f"Voz padrão: {names[idx]}")
 
 
 def _pick_rate(cfg: dict) -> None:
+    ui.clear(); ui.banner(__version__)
     presets = [("0,7×  (lenta)", 0.7), ("0,85×", 0.85), ("1,0×  (normal)", 1.0),
                ("1,15×", 1.15), ("1,3×  (rápida)", 1.3), ("1,5×  (muito rápida)", 1.5)]
     cur = min(range(len(presets)), key=lambda i: abs(presets[i][1] - cfg["rate"]))
@@ -165,11 +213,8 @@ def _pick_rate(cfg: dict) -> None:
         ui.success(f"Velocidade padrão: {presets[idx][1]:.2f}×")
 
 
-def _tone_label(value: str) -> str:
-    return "automático" if value == "auto" else tone_mod.TONE_LABEL.get(value, value)
-
-
 def _pick_tone(cfg: dict) -> None:
+    ui.clear(); ui.banner(__version__)
     labels = [("automático (detecta emoção)", "auto"), ("neutro", "neutro"),
               ("amigável", "amigavel"), ("alegre", "alegre"),
               ("raivoso", "raivoso"), ("triste", "triste")]
@@ -181,14 +226,22 @@ def _pick_tone(cfg: dict) -> None:
         ui.success(f"Tom padrão: {labels[idx][0]}")
 
 
-def _menu_settings(cfg: dict) -> dict:
+def _toggle(cfg: dict, key: str, label: str) -> None:
+    cfg[key] = not cfg.get(key, False)
+    config_store.save(cfg)
+    ui.success(f"{label}: {'ligado' if cfg[key] else 'desligado'}")
+
+
+def _menu_settings_cli(cfg: dict) -> dict:
     while True:
         ui.clear()
         ui.banner(__version__)
-        idx = ui.select_menu("Configurações", [
-            (f"Voz padrão: {cfg['voice']}", "escolher a voz padrão"),
-            (f"Velocidade padrão: {cfg['rate']:.2f}×", "ajustar velocidade"),
-            (f"Tom de voz: {_tone_label(cfg['tone'])}", "auto detecta emoção do texto"),
+        idx = ui.select_menu("Configurações (terminal)", [
+            (f"Voz padrão: {cfg['voice']}", "escolher a voz"),
+            (f"Velocidade: {cfg['rate']:.2f}×", "ajustar"),
+            (f"Tom de voz: {_tom(cfg['tone'])}", "auto detecta emoção"),
+            (f"Atualização automática: {'ligada' if cfg.get('auto_update') else 'desligada'}", "liga/desliga"),
+            (f"Modo só teste: {'ligado' if cfg.get('test_only') else 'desligado'}", "toca sem salvar arquivo"),
             ("Restaurar padrões", None),
             ("Voltar", None),
         ])
@@ -199,6 +252,10 @@ def _menu_settings(cfg: dict) -> dict:
         elif idx == 2:
             _pick_tone(cfg)
         elif idx == 3:
+            _toggle(cfg, "auto_update", "Atualização automática")
+        elif idx == 4:
+            _toggle(cfg, "test_only", "Modo só teste")
+        elif idx == 5:
             cfg = dict(config_store.DEFAULTS)
             config_store.save(cfg)
             ui.success("Configurações restauradas para o padrão.")
@@ -207,15 +264,54 @@ def _menu_settings(cfg: dict) -> dict:
         ui.pause()
 
 
-def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -> int:
+def _open_html_config() -> dict:
+    from . import web_config
     ui.clear()
     ui.banner(__version__)
-    _startup_status(voice, models_dir)
+    try:
+        httpd, url = web_config.open_and_serve()
+    except Exception as exc:  # noqa: BLE001
+        ui.error(f"Não foi possível abrir as configurações no navegador: {exc}")
+        ui.pause()
+        return config_store.load()
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    ui.info(f"Página aberta no navegador: {url}")
+    ui.pause("\n  (Edite e clique em Salvar no navegador. Enter aqui para voltar)")
+    try:
+        httpd.shutdown()
+    except Exception:
+        pass
+    ui.success("Configurações recarregadas do arquivo.")
+    return config_store.load()
+
+
+def _menu_config_entry(cfg: dict) -> dict:
+    ui.clear()
+    ui.banner(__version__)
+    idx = ui.select_menu("Como abrir as configurações?", [
+        ("🌐  Navegador (HTML)", "abre uma página no navegador"),
+        ("⌨️  Terminal (CLI)", "configura pelo painel"),
+        ("Voltar", None),
+    ])
+    if idx == 0:
+        return _open_html_config()
+    if idx == 1:
+        return _menu_settings_cli(cfg)
+    return cfg
+
+
+def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -> int:
+    if cfg.get("auto_update"):
+        _maybe_auto_update()
     while True:
+        ui.clear()
+        ui.banner(__version__)
+        _startup_status(cfg["voice"], models_dir)
         idx = ui.select_menu("O que você quer fazer?", [
             ("Testar fala", "digite um texto e ouça"),
             ("Buscar atualizações", "verifica nova versão no GitHub"),
-            ("Configurações", "voz e velocidade padrão"),
+            ("Configurações", "navegador (HTML) ou terminal (CLI)"),
             ("Reinstalar", "reinstala o LunaSpeech"),
             ("Listar vozes", "vozes disponíveis"),
             ("Sair", None),
@@ -225,17 +321,22 @@ def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -
             break
         try:
             if idx == 0:
-                _menu_test(cfg["voice"], models_dir, cfg["rate"], cfg["tone"])
+                _menu_test(cfg["voice"], models_dir, cfg["rate"], cfg["tone"], cfg.get("test_only", False))
+                ui.pause()
             elif idx == 1:
                 _menu_check_update()
+                ui.pause()
             elif idx == 2:
-                cfg = _menu_settings(cfg)
-                voice = cfg["voice"]
+                cfg = _menu_config_entry(cfg)
             elif idx == 3:
                 _menu_reinstall()
+                ui.pause()
             elif idx == 4:
+                ui.clear()
+                ui.banner(__version__)
+                print(ui.fg(ui.VIOLET, "  Vozes disponíveis:"))
                 voices.print_voices()
-            ui.pause()
+                ui.pause()
         except KeyboardInterrupt:
             print()
             ui.info("Até logo! 🌙")
@@ -281,7 +382,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         ui.success(f"Voz '{voice}' pronta.")
         return 0
 
-    rc = _synthesize_one(tts, text, args.out, rate, tone)
+    if cfg.get("test_only"):
+        return _synthesize_play_only(tts, text, rate, tone)
+
+    rc = _synthesize_save(tts, text, args.out, rate, tone)
     if rc == 0:
         s = platform.system()
         hint = (f'start "" "{args.out}"' if s == "Windows"
