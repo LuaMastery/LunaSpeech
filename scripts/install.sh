@@ -56,6 +56,14 @@ python -m pip install --quiet "git+https://github.com/${REPO}.git@${VERSION}"
 python -m pip install --quiet piper-phonemize || \
   echo "   (aviso: piper-phonemize não instalado — instale o espeak-ng do sistema)"
 
+# 3.1) disponibiliza 'lunaspeech' em qualquer terminal (novo shell)
+for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+  [ -f "$rc" ] || continue
+  grep -qF "$VENV/bin" "$rc" 2>/dev/null || \
+    printf '\nexport PATH="%s:$PATH"  # lunaspeech\n' "$VENV/bin" >> "$rc"
+done
+[ -f "$HOME/.bashrc" ] && echo "✓  'lunaspeech' adicionado ao ~/.bashrc (abra um novo terminal)"
+
 # 4) baixa a voz pt-BR (faber): primeiro do release do GitHub; se não houver, do HuggingFace
 MODELS_DIR="${LUNASPEECH_MODELS:-$HOME/.local/share/lunaspeech/models}"
 FABER_DIR="$MODELS_DIR/faber"

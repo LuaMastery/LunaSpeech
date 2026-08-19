@@ -125,8 +125,33 @@ def _menu_reinstall() -> None:
         )
 
 
+def _startup_status(voice: str, models_dir: Optional[str]) -> None:
+    """Sequência de boot: verifica fonetizador, voz padrão e versão."""
+    from .text.phonemize import available_backend
+    from . import voices as _v
+
+    ui.hr()
+    backend = available_backend()
+    if backend == "nenhum":
+        ui.error("fonetizador: nenhum encontrado (instale espeak-ng ou piper-phonemize)")
+    else:
+        ui.success(f"fonetizador: {backend}")
+
+    spec = _v.VOICES.get(voice)
+    present = False
+    if spec:
+        d = _v.voice_dir(voice, _v.models_dir(models_dir))
+        present = (d / spec.onnx_name).exists() and (d / spec.json_name).exists()
+    (ui.success if present else ui.warn)(
+        f"voz '{voice}': pronta" if present else f"voz '{voice}': será baixada ao testar fala"
+    )
+    ui.success(f"versão: {__version__}")
+    ui.hr()
+
+
 def interactive(args) -> int:
     ui.banner(__version__)
+    _startup_status(args.voice, args.models_dir)
     voice = args.voice
     models_dir = args.models_dir
     while True:

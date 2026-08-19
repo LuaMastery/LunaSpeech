@@ -53,6 +53,15 @@ Write-Host "→  Instalando lunaspeech $Version..."
 & "$Venv\Scripts\python.exe" -m pip install --quiet "git+https://github.com/$Repo.git@$Version"
 if ($LASTEXITCODE -ne 0) { Write-Host "❌  Falha ao instalar o lunaspeech." -ForegroundColor Red; exit 1 }
 
+# 3.1) disponibiliza 'lunaspeech' em qualquer terminal (PATH do usuário)
+$ScriptsDir = Join-Path $Venv "Scripts"
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($ScriptsDir -and ($userPath -notlike "*$ScriptsDir*")) {
+    $newPath = if ($userPath) { "$userPath;$ScriptsDir" } else { "$ScriptsDir" }
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    Write-Host "✓  'lunaspeech' disponível em novos terminais (sem precisar ativar)" -ForegroundColor Green
+}
+
 # 4) garante o espeak-ng (fonemização no Windows)
 if (-not (Get-Command espeak-ng -ErrorAction SilentlyContinue) -and
     -not (Get-Command espeak -ErrorAction SilentlyContinue)) {
