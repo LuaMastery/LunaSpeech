@@ -19,6 +19,7 @@ from .numbers import (
     ordinal_to_words,
     spell_letters,
 )
+from .foreign import adapt_foreign_words
 
 # ------------------------------------------------------------------ utilidades
 _WHITESPACE = re.compile(r"\s+")
@@ -223,6 +224,7 @@ def normalize_text(text: str) -> str:
     """Normalização pt-BR completa (Fase 2)."""
     if not text:
         return ""
+    text = adapt_foreign_words(text)
     text = _expand_abbreviations(text)
     text = _CURRENCY_RE.sub(_currency_repl, text)
     text = _PERCENT_RE.sub(lambda m: f"{number_token_to_words(m['num'])} por cento", text)
