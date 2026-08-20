@@ -160,6 +160,8 @@ def _stdin_is_interactive() -> bool:
 # --------------------------------------------------------------- mouse / teclas
 def _enable_mouse() -> None:
     _enable_vt_windows()
+    if os.name == "nt":
+        _enable_vt_input_windows()
     sys.stdout.write("\033[?1000h\033[?1006h")  # eventos de botão + formato SGR
     sys.stdout.flush()
 
@@ -167,6 +169,40 @@ def _enable_mouse() -> None:
 def _disable_mouse() -> None:
     sys.stdout.write("\033[?1006l\033[?1000l")
     sys.stdout.flush()
+    if os.name == "nt":
+        _restore_vt_input_windows()
+
+
+# No Windows, é preciso habilitar VT também na ENTRADA para receber cliques do mouse
+_vt_input_old = None
+
+
+def _enable_vt_input_windows() -> None:
+    global _vt_input_old
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.GetStdHandle(-10)  # STD_INPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if k.GetConsoleMode(h, ctypes.byref(mode)):
+            _vt_input_old = mode.value
+            k.SetConsoleMode(h, 0x0200)  # ENABLE_VIRTUAL_TERMINAL_INPUT
+    except Exception:
+        _vt_input_old = None
+
+
+def _restore_vt_input_windows() -> None:
+    global _vt_input_old
+    if _vt_input_old is None:
+        return
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.GetStdHandle(-10)
+        k.SetConsoleMode(h, _vt_input_old)
+    except Exception:
+        pass
+    _vt_input_old = None
 
 
 def _read_byte(timeout: float = 0.0) -> Optional[bytes]:

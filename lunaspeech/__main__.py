@@ -50,12 +50,20 @@ def _play(path: Path) -> bool:
     s = platform.system()
     try:
         if s == "Windows":
-            os.startfile(str(path))  # type: ignore[attr-defined]
+            # winsound toca o WAV direto (stdlib), sem abrir player externo
+            try:
+                import winsound
+                winsound.PlaySound(str(path), winsound.SND_FILENAME)
+                return True
+            except Exception:
+                os.startfile(str(path))  # type: ignore[attr-defined]
+                return True
         elif s == "Darwin":
             subprocess.Popen(["afplay", str(path)])
+            return True
         else:
             subprocess.Popen(["aplay", "-q", str(path)])
-        return True
+            return True
     except Exception:
         return False
 
@@ -93,7 +101,8 @@ def _synthesize_play_only(tts, text: str, rate: float, tone: str) -> int:
     ui.success(f"Modo só teste (tom: {_tom(result.tone)}) — reproduzindo, nada foi salvo.")
     if result.missing_phonemes:
         ui.warn(f"fonemas não reconhecidos: {result.missing_phonemes}")
-    _play(Path(tmp.name))
+    if not _play(Path(tmp.name)):
+        ui.warn("Não consegui reproduzir automaticamente.")
     try:
         os.unlink(tmp.name)
     except OSError:
