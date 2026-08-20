@@ -45,7 +45,7 @@ def test_units_and_temp():
 
 
 def test_acronyms_and_abbreviations():
-    assert normalize_text("Meu CPF") == "Meu cê pê éfe"
+    assert normalize_text("Meu CPF") == "Meu cê pê éfi"
     assert normalize_text("Dr. Silva") == "doutor Silva"
     assert normalize_text("Sra. Ana") == "senhora Ana"
     assert normalize_text("etc.") == "etcétera"

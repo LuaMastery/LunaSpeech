@@ -226,16 +226,16 @@ def ordinal_to_words(n: int, gender: str = "m") -> str:
 # -------------------------------------------------------------- soletrar (G2P)
 # Nomes das letras em pt-BR (para soletrar siglas: CPF → "cê pê éfe")
 LETTER_NAMES = {
-    "A": "á", "B": "bê", "C": "cê", "D": "dê", "E": "é", "F": "éfe",
-    "G": "gê", "H": "agá", "I": "i", "J": "jóta", "K": "cá", "L": "éle",
-    "M": "ême", "N": "êne", "O": "ó", "P": "pê", "Q": "quê", "R": "érre",
-    "S": "ésse", "T": "tê", "U": "u", "V": "vê", "W": "dábliu", "X": "xis",
+    "A": "á", "B": "bê", "C": "cê", "D": "dê", "E": "éi", "F": "éfi",
+    "G": "gê", "H": "agá", "I": "i", "J": "jóta", "K": "cá", "L": "éli",
+    "M": "êmi", "N": "êni", "O": "ó", "P": "pê", "Q": "quê", "R": "érri",
+    "S": "éssi", "T": "tê", "U": "u", "V": "vê", "W": "dábliu", "X": "xis",
     "Y": "ípsilon", "Z": "zê",
 }
 
 
 def spell_letters(letters: str) -> str:
-    """Soletra uma sequência de letras maiúsculas: ``"CPF"`` → ``"cê pê éfe"``."""
+    """Soletra uma sequência de letras maiúsculas: ``"CPF"`` → ``"cê pê éfi"``."""
     out = []
     for ch in letters:
         if ch.isalpha():
@@ -243,3 +243,10 @@ def spell_letters(letters: str) -> str:
         else:
             out.append(ch)
     return " ".join(out)
+
+
+def spell_words(text: str) -> str:
+    """Soletra cada palavra do texto: ``"oi gato"`` → ``"ó i  gá á tê ó"``."""
+    import re
+
+    return re.sub(r"[^\W\d_]+", lambda m: spell_letters(m.group(0)), text, flags=re.UNICODE)

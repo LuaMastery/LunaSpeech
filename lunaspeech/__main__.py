@@ -33,6 +33,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("-r", "--rate", type=float, default=None, help="Velocidade (1.3 = mais rápido).")
     p.add_argument("-t", "--tone", default=None, choices=tone_mod.ALL_TONES,
                    help="Tom de voz (auto detecta a emoção do texto).")
+    p.add_argument("--spell", action="store_true", help="Soletra o texto letra por letra.")
     p.add_argument("--models-dir", default=None, help="Diretório de vozes.")
     p.add_argument("--download-only", action="store_true", help="Apenas prepara a voz, sem sintetizar.")
     p.add_argument("-l", "--list-voices", action="store_true", help="Lista as vozes disponíveis.")
@@ -151,6 +152,9 @@ def _menu_test(voice: str, models_dir: Optional[str], rate: float, tone: str, te
     if not text:
         ui.warn("Texto vazio.")
         return
+    if ui.ask("Soletrar letra por letra? [s/N]").lower().startswith("s"):
+        from .text.numbers import spell_words
+        text = spell_words(text)
     try:
         tts = _load_tts(voice, models_dir)
     except Exception as exc:  # noqa: BLE001
@@ -537,6 +541,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not text:
         ui.error("Nenhum texto fornecido.")
         return 2
+
+    if getattr(args, "spell", False):
+        from .text.numbers import spell_words
+        text = spell_words(text)
 
     if sys.stdout.isatty():
         ui.banner(__version__)

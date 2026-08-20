@@ -47,3 +47,20 @@ def test_digits_preserved():
     # números continuam sendo tratados pelo normalizador de números
     assert adapt_foreign_words("valor 100") == "valor 100"
     assert normalize_text("valor 100") == "valor cem"
+
+
+def test_spell_words():
+    from lunaspeech.text.numbers import spell_words
+    out = spell_words("casa")
+    assert "cê" in out and "á" in out and "éssi" in out  # c-a-s-a
+    assert "éfi" in spell_words("F")
+    assert "éli" in spell_words("L")
+
+
+def test_letter_names_no_glitch():
+    """Regressão: nenhum nome de letra fonemiza com 'y' solto (bug do soletrar)."""
+    from lunaspeech.text.numbers import LETTER_NAMES
+    from lunaspeech.text.phonemize import phonemize
+    for letter, nome in LETTER_NAMES.items():
+        ph = [p for s in phonemize(nome, "pt-br") for p in s]
+        assert ph and ph[-1] != "y", f"letra {letter} ({nome}) termina em y: {ph}"
