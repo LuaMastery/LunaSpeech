@@ -494,6 +494,9 @@ def _cli_serve(extra: List[str]) -> int:
                 voice = next(it)
             except StopIteration:
                 pass
+    # containers/plataformas (Render, Hugging Face, Koyeb) definem PORT e HOST
+    host = os.environ.get("LUNASPEECH_HOST", host)
+    port = int(os.environ.get("PORT", str(port)))
     from . import server
     try:
         httpd, url = server.serve(host=host, port=port, voice=voice)
@@ -541,6 +544,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         voices.print_voices()
         return 0
 
+    if sys.stdout.isatty():
+        ui.banner(__version__)
+
+    try:
+        tts = _load_tts(voice, args.models_dir)
+    except Exception as exc:  # noqa: BLE001
+        ui.error(f"Não foi possível preparar a voz '{voice}':\n{exc}")
+        return 1
+
+    if args.download_only:
+        ui.success(f"Voz '{voice}' pronta.")
+        return 0
+
     text = args.text
     if text is None:
         if sys.stdin.isatty():
@@ -555,19 +571,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     if getattr(args, "spell", False):
         from .text.numbers import spell_words
         text = spell_words(text)
-
-    if sys.stdout.isatty():
-        ui.banner(__version__)
-
-    try:
-        tts = _load_tts(voice, args.models_dir)
-    except Exception as exc:  # noqa: BLE001
-        ui.error(f"Não foi possível preparar a voz '{voice}':\n{exc}")
-        return 1
-
-    if args.download_only:
-        ui.success(f"Voz '{voice}' pronta.")
-        return 0
 
     if cfg.get("test_only"):
         return _synthesize_play_only(tts, text, rate, tone)

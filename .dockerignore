@@ -1,0 +1,18 @@
+# não levar peso desnecessário pra imagem Docker
+.git
+.github
+__pycache__
+*.pyc
+models/
+samples/
+*.wav
+*.mp3
+*.onnx
+tests/
+docs/
+.venv
+venv/
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache

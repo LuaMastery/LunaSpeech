@@ -1,0 +1,15 @@
+# Deploy gratuito e com 1 clique no Render (https://render.com)
+# Botão "Deploy to Render" no README usa este arquivo.
+services:
+  - type: web
+    name: lunaspeech
+    runtime: docker
+    plan: free
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: LUNASPEECH_HOST
+        value: 0.0.0.0
+      # Render define PORT automaticamente; o Luna escuta nele.

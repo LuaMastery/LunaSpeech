@@ -10,7 +10,7 @@
 $ErrorActionPreference = "Stop"
 
 $Repo    = "LuaMastery/LunaSpeech"
-$Version = if ($env:LUNASPEECH_VERSION) { $env:LUNASPEECH_VERSION } else { "v0.7.0" }
+$Version = if ($env:LUNASPEECH_VERSION) { $env:LUNASPEECH_VERSION } else { "v0.8.0" }
 $Py      = if ($env:PYTHON) { $env:PYTHON } else { "python" }
 
 Write-Host ""
