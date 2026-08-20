@@ -21,19 +21,19 @@ TEXTO → [front-end pt-BR] → [fonemização espeak-ng] → [VITS/ONNX em CPU]
 
 **Linux / macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.5.1/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.5.2/scripts/install.sh | bash
 ```
 
 **Windows** (PowerShell):
 ```powershell
-irm https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.5.1/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/LuaMastery/LunaSpeech/v0.5.2/scripts/install.ps1 | iex
 ```
 
 Uma linha: instala o LunaSpeech, baixa a voz pt-BR (faber) e fala uma frase de teste. Áudio em `~/lunaspeech_teste.wav`.
 
 > ⚠️ **Windows:** a fonemização usa o binário `espeak-ng` (o `piper-phonemize` não tem wheel pra Windows). O `install.ps1` tenta instalar o espeak-ng automaticamente (winget/choco); se não conseguir, baixe em <https://github.com/espeak-ng/espeak-ng/releases>.
 
-> Release **v0.5.1**: <https://github.com/LuaMastery/LunaSpeech/releases/tag/v0.5.1>
+> Release **v0.5.2**: <https://github.com/LuaMastery/LunaSpeech/releases/tag/v0.5.2>
 
 ## 📦 Instalação (manual)
 

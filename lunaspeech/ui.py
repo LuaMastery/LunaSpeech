@@ -157,6 +157,22 @@ def _stdin_is_interactive() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
 
 
+def hide_cursor() -> None:
+    """Esconde o cursor (a 'risquinha' que pisca)."""
+    if sys.stdout.isatty():
+        _enable_vt_windows()
+        sys.stdout.write("\033[?25l")
+        sys.stdout.flush()
+
+
+def show_cursor() -> None:
+    """Mostra o cursor de volta."""
+    if sys.stdout.isatty():
+        _enable_vt_windows()
+        sys.stdout.write("\033[?25h")
+        sys.stdout.flush()
+
+
 # --------------------------------------------------------------- mouse / teclas
 def _enable_mouse() -> None:
     _enable_vt_windows()

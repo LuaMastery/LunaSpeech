@@ -313,6 +313,9 @@ def _menu_config_entry(cfg: dict) -> dict:
 def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -> int:
     if cfg.get("auto_update"):
         _maybe_auto_update()
+    import atexit
+    ui.hide_cursor()
+    atexit.register(ui.show_cursor)  # rede de segurança: sempre devolve o cursor
     while True:
         ui.clear()
         ui.banner(__version__)
@@ -350,6 +353,7 @@ def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -
             print()
             ui.info("Até logo! 🌙")
             break
+    ui.show_cursor()
     return 0
 
 

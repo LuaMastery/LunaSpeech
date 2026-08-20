@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO="LuaMastery/LunaSpeech"
-VERSION="${LUNASPEECH_VERSION:-v0.5.1}"
+VERSION="${LUNASPEECH_VERSION:-v0.5.2}"
 PYTHON="${PYTHON:-python3}"
 RELEASE_BASE="https://github.com/${REPO}/releases/download/${VERSION}"
 
