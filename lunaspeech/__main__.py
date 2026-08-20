@@ -361,7 +361,7 @@ def _discord_info() -> None:
     ui.banner(__version__)
     print(ui.fg(ui.VIOLET, "  💬  LunaSpeech no Discord"))
     ui.hr()
-    print(dim("  O bot responde a !fala <texto> com o áudio (.wav) em anexo."))
+    print(ui.dim("  O bot responde a !fala <texto> com o áudio (.wav) em anexo."))
     print()
     print("  1. Crie um app/bot em https://discord.com/developers/applications")
     print("     e copie o TOKEN.")
@@ -370,7 +370,7 @@ def _discord_info() -> None:
     print("  4. Convide o bot pro seu servidor.")
     print("  5. Rode por aqui (Rodar o bot agora) ou no terminal:  lunaspeech discord")
     print()
-    print(dim("  No Discord:  !fala Olá, pessoal!"))
+    print(ui.dim("  No Discord:  !fala Olá, pessoal!"))
 
 
 def _api_examples() -> None:
@@ -378,7 +378,7 @@ def _api_examples() -> None:
     ui.banner(__version__)
     print(ui.fg(ui.VIOLET, "  📡  Usar o Luna em outros sistemas (API)"))
     ui.hr()
-    print(dim("  Inicie o servidor (lunaspeech serve) e qualquer sistema chama /speak:"))
+    print(ui.dim("  Inicie o servidor (lunaspeech serve) e qualquer sistema chama /speak:"))
     print()
     print("  • Player web:  http://localhost:8000/")
     print('  • curl:  curl "http://localhost:8000/speak?text=ol%C3%A1&voice=faber" -o out.wav')
@@ -386,7 +386,7 @@ def _api_examples() -> None:
     print("             params={'text':'olá','voice':'faber'}).content")
     print('  • POST JSON:  POST /speak  {"text":"olá","voice":"faber","rate":1.0}')
     print()
-    print(dim("  Endpoints: /  /speak  /voices  /tones  /health"))
+    print(ui.dim("  Endpoints: /  /speak  /voices  /tones  /health"))
 
 
 def _menu_integrations(cfg: dict) -> None:
