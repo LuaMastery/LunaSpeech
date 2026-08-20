@@ -22,7 +22,7 @@ from .engine.piper_onnx import PiperOnnxEngine
 from .engine.base import SynthesisResult, AudioChunk
 from .core import LunaSpeech
 
-__version__ = "0.6.2"
+__version__ = "0.7.0"
 
 __all__ = [
     "LunaSpeech",

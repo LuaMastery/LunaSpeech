@@ -328,6 +328,11 @@ def _run_server(cfg: dict) -> None:
     ui.info(f"API:  GET {url}/speak?text=olá   |   POST {url}/speak (JSON)")
     ui.info("Pressione Ctrl+C para parar e voltar ao menu.")
     try:
+        import webbrowser
+        webbrowser.open(url)
+    except Exception:
+        pass
+    try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print()
@@ -499,6 +504,11 @@ def _cli_serve(extra: List[str]) -> int:
     print(f"   Player web: {url}")
     print(f"   API:        {url}/speak?text=olá&voice={voice}")
     print("   Ctrl+C para parar.")
+    try:
+        import webbrowser
+        webbrowser.open(url)
+    except Exception:
+        pass
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

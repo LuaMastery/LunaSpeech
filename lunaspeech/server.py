@@ -1,13 +1,8 @@
-"""Servidor HTTP do LunaSpeech — API + player web (stdlib, sem dependências novas).
+"""Servidor HTTP do LunaSpeech — site + API (stdlib, sem dependências novas).
 
-Expõe:
-  GET  /                    → player web (digite texto e ouça no navegador)
-  GET  /speak?text=...      → áudio WAV  (voice, rate, tone opcionais)
-  POST /speak  {text,...}   → áudio WAV (JSON)
-  GET  /voices             → JSON com as vozes disponíveis
-  GET  /health             → "ok"
-
-Qualquer sistema (Discord, automação, outra página) pode chamar /speak.
+Site (player completo):  GET /
+API:                      GET/POST /speak  → WAV
+                          GET /voices, /tones, /health
 """
 
 from __future__ import annotations
@@ -21,57 +16,173 @@ from urllib.parse import parse_qs, urlparse
 from . import __version__, voices as voices_mod
 from . import tone as tone_mod
 
-_PLAYER = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>🌙 LunaSpeech</title>
+_SITE = """<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🌙 LunaSpeech — voz da lua</title>
 <style>
-  :root{--bg:#0d1117;--panel:#161b22;--acc:#7c5cff;--lunar:#7fdbe8;--gold:#ffd866;--text:#e6edf3;--dim:#8b949e}
-  *{box-sizing:border-box}
-  body{margin:0;background:radial-gradient(1200px 600px at 75% -10%,#182236,var(--bg));color:var(--text);
-       font:15px/1.55 system-ui,sans-serif;min-height:100vh;display:flex;justify-content:center;padding:30px 16px}
-  .card{width:100%;max-width:620px;background:var(--panel);border:1px solid #30363d;border-radius:16px;padding:26px}
-  h1{margin:0 0 4px;font-weight:600}
-  small{color:var(--dim)}
-  textarea{width:100%;min-height:110px;background:#0d1117;color:var(--text);border:1px solid #30363d;
-           border-radius:10px;padding:12px;font:15px/1.5 inherit;resize:vertical}
-  .row{display:flex;gap:10px;margin:12px 0}
-  .row>div{flex:1}
-  label{display:block;color:var(--lunar);font-size:12px;margin:0 0 4px}
-  select,input[type=range]{width:100%;background:#0d1117;color:var(--text);border:1px solid #30363d;border-radius:8px;padding:8px}
-  button{width:100%;border:0;border-radius:11px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;
-         color:#0d1117;background:linear-gradient(90deg,#6d4aff,#7fdbe8);margin-top:6px}
-  button:disabled{opacity:.6}
-  audio{width:100%;margin-top:14px}
-  .hint{color:var(--dim);font-size:12px;margin-top:14px;text-align:center}
-</style></head><body><div class="card">
-  <h1>🌙 LunaSpeech <small id="v"></small></h1>
-  <textarea id="t" placeholder="Digite o texto para falar...">Olá! Eu sou o LunaSpeech.</textarea>
-  <div class="row"><div><label>Voz</label><select id="voice"></select></div>
-    <div><label>Tom</label><select id="tone"></select></div></div>
-  <div class="row"><div><label>Velocidade: <span id="rv">1.00×</span></label>
-    <input type="range" id="rate" min="0.5" max="2" step="0.05" value="1"></div></div>
-  <button id="b" onclick="falar()">🔊 Falar</button>
-  <audio id="a" controls></audio>
-  <p class="hint">API: <code>GET /speak?text=...</code> &nbsp;•&nbsp; <code>POST /speak</code> JSON</p>
+:root{--bg:#0a0e17;--panel:#131a26;--panel2:#1b2333;--acc:#7c5cff;--lunar:#7fdbe8;
+      --gold:#ffd866;--text:#e6edf3;--dim:#8b97a8;--line:#263042}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:16px/1.6 'Segoe UI',system-ui,sans-serif;
+     overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:-2;
+  background:radial-gradient(900px 500px at 80% -10%,#1a2540,transparent),
+             radial-gradient(700px 400px at 10% 110%,#1a1a3a,transparent)}
+.stars{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(1px 1px at 20% 30%,#fff,transparent),
+    radial-gradient(1px 1px at 60% 70%,#ffd866,transparent),
+    radial-gradient(1px 1px at 80% 20%,#7fdbe8,transparent),
+    radial-gradient(1px 1px at 40% 80%,#fff,transparent),
+    radial-gradient(1px 1px at 90% 60%,#fff,transparent);background-size:100% 100%}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+header{position:sticky;top:0;z-index:10;backdrop-filter:blur(10px);
+  background:rgba(10,14,23,.75);border-bottom:1px solid var(--line)}
+header .wrap{display:flex;align-items:center;justify-content:space-between;height:62px}
+.logo{font-size:20px;font-weight:700}
+.logo .grad{background:linear-gradient(90deg,#7c5cff,#7fdbe8);-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+nav a{color:var(--dim);text-decoration:none;margin-left:22px;font-size:14px}
+nav a:hover{color:var(--text)}
+.hero{text-align:center;padding:64px 0 32px}
+.hero h1{font-size:clamp(40px,8vw,76px);font-weight:800;letter-spacing:-1px;line-height:1}
+.hero h1 .grad{background:linear-gradient(90deg,#9d7bff,#7fdbe8,#ffd866);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--dim);font-size:18px;margin-top:14px}
+.badges{margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.badges span{background:var(--panel);border:1px solid var(--line);color:var(--lunar);
+  padding:5px 12px;border-radius:999px;font-size:12px}
+.player{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+  border-radius:18px;padding:24px;max-width:680px;margin:36px auto;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+textarea{width:100%;min-height:96px;background:#0a0e17;color:var(--text);border:1px solid var(--line);
+  border-radius:12px;padding:14px;font:inherit;resize:vertical}
+.row{display:flex;gap:12px;margin:14px 0 0;flex-wrap:wrap}
+.row>div{flex:1;min-width:130px}
+label{display:block;color:var(--lunar);font-size:12px;margin:0 0 5px}
+select,input[type=range]{width:100%;background:#0a0e17;color:var(--text);border:1px solid var(--line);
+  border-radius:9px;padding:9px 10px;font:inherit}
+button{border:0;border-radius:12px;padding:13px 20px;font:inherit;font-weight:700;cursor:pointer;
+  color:#0a0e17;background:linear-gradient(90deg,#7c5cff,#7fdbe8);transition:transform .1s}
+button:hover{transform:translateY(-1px)}
+button:disabled{opacity:.55;cursor:wait}
+.actions{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+audio{width:100%;margin-top:12px;height:38px}
+.dl{color:var(--lunar);font-size:13px;text-decoration:none;border:1px solid var(--line);
+  padding:9px 14px;border-radius:9px}
+.dl:hover{background:var(--panel2)}
+section{padding:56px 0}
+.sec-title{text-align:center;font-size:28px;font-weight:700;margin-bottom:8px}
+.sec-sub{text-align:center;color:var(--dim);margin-bottom:32px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;
+  transition:border-color .15s,transform .15s}
+.card:hover{border-color:var(--acc);transform:translateY(-3px)}
+.card .ico{font-size:26px}
+.card h3{font-size:17px;margin:10px 0 6px}
+.card p{color:var(--dim);font-size:14px}
+.vcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;
+  cursor:pointer;text-align:center;transition:all .15s}
+.vcard:hover,.vcard.sel{border-color:var(--lunar);background:var(--panel2)}
+.vcard .nm{font-weight:700}
+.vcard .lg{color:var(--dim);font-size:13px}
+.vcard .go{color:var(--lunar);font-size:12px;margin-top:6px;visibility:hidden}
+.vcard:hover .go{visibility:visible}
+footer{border-top:1px solid var(--line);padding:28px 0;text-align:center;color:var(--dim);font-size:13px}
+footer a{color:var(--lunar);text-decoration:none}
+.hint{color:var(--dim);font-size:12px;text-align:center;margin-top:10px}
+code{background:#0a0e17;padding:2px 6px;border-radius:5px;font-size:13px;color:var(--gold)}
+@media(max-width:560px){nav{display:none}}
+</style></head><body><div class="stars"></div>
+
+<header><div class="wrap">
+  <div class="logo">🌙 <span class="grad">LunaSpeech</span></div>
+  <nav><a href="#testar">Testar</a><a href="#recursos">Recursos</a><a href="#vozes">Vozes</a></nav>
+</div></header>
+
+<div class="wrap">
+<section class="hero" id="testar">
+  <h1><span class="grad">LunaSpeech</span></h1>
+  <p>voz da lua • text-to-speech em português, leve e open source</p>
+  <div class="badges">
+    <span>🇧🇷 Pt-BR</span><span>🎭 Tom emocional</span><span>🔤 Soletração</span>
+    <span>💻 Roda em CPU</span><span>🔌 API + Discord</span>
+  </div>
+  <div class="player">
+    <textarea id="t" placeholder="Digite o texto para a Luna falar...">Olá! Eu sou a LunaSpeech, a voz da lua. Escreva qualquer texto e eu falo pra você.</textarea>
+    <div class="row">
+      <div><label>Voz</label><select id="voice"></select></div>
+      <div><label>Tom de voz</label><select id="tone"></select></div>
+      <div><label>Velocidade · <span id="rv">1.00×</span></label>
+        <input type="range" id="rate" min="0.5" max="2" step="0.05" value="1"></div>
+    </div>
+    <div class="actions">
+      <button id="b" onclick="falar()">🔊 Falar</button>
+      <a class="dl" id="dl" href="#" style="display:none">⬇ Baixar .wav</a>
+    </div>
+    <audio id="a" controls></audio>
+    <p class="hint">Dica: texto amigável fica calmo; texto raivoso fica tenso. Experimente:
+      <code>EU ODEIO ESPERAR!!!</code></p>
+  </div>
+</section>
+
+<section id="recursos">
+  <div class="sec-title">Recursos</div>
+  <div class="sec-sub">tudo que a Luna faz — teste no player acima</div>
+  <div class="grid">
+    <div class="card"><div class="ico">🇧🇷</div><h3>Português do Brasil</h3>
+      <p>Entende números, <code>R$ 1.234,56</code>, datas, horas, siglas e abreviações.</p></div>
+    <div class="card"><div class="ico">🎭</div><h3>Tom emocional</h3>
+      <p>Deteca a emoção do texto — amigável, alegre, raivoso, triste — e ajusta a prosódia.</p></div>
+    <div class="card"><div class="ico">🔤</div><h3>Soletração</h3>
+      <p>Soletra siglas (CPF) e palavras estrangeiras sem falhas.</p></div>
+    <div class="card"><div class="ico">⚡</div><h3>Leve e em CPU</h3>
+      <p>Sem GPU, sem PyTorch. Roda até num Raspberry Pi.</p></div>
+    <div class="card"><div class="ico">🎚️</div><h3>Vozes e controle</h3>
+      <p>Várias vozes pt-BR, controle de velocidade e tom.</p></div>
+    <div class="card"><div class="ico">🔌</div><h3>Integrações</h3>
+      <p>API <code>/speak</code> e bot de Discord pra usar em qualquer lugar.</p></div>
+  </div>
+</section>
+
+<section id="vozes">
+  <div class="sec-title">Vozes</div>
+  <div class="sec-sub">clique numa voz pra testá-la no player</div>
+  <div class="grid" id="vgrid"></div>
+</section>
 </div>
+
+<footer><div class="wrap">
+  🌙 LunaSpeech v__VERSION__ · open source · <a href="https://github.com/LuaMastery/LunaSpeech">GitHub</a>
+</div></footer>
+
 <script>
 const $=id=>document.getElementById(id);
-fetch('/voices').then(r=>r.json()).then(vs=>{
-  const s=$('voice'); vs.forEach(v=>{const o=document.createElement('option');o.value=v.name;
-    o.textContent=v.name+' '+v.language;if(v.default)o.selected=true;s.appendChild(o);});
-  $('v').textContent='· '+vs.length+' vozes';
-});
-fetch('/tones').then(r=>r.json()).then(ts=>{const s=$('tone');
-  ts.forEach(t=>{const o=document.createElement('option');o.value=t.value;o.textContent=t.label;s.appendChild(o);});});
+async function load(){
+  const vs=await fetch('/voices').then(r=>r.json());
+  const sel=$('voice');
+  vs.forEach(v=>{const o=document.createElement('option');o.value=v.name;
+    o.textContent=v.name+' · '+v.language;if(v.default){o.selected=true;sel.value=v.name;}sel.appendChild(o);});
+  const grid=$('vgrid');
+  vs.forEach(v=>{const c=document.createElement('div');c.className='vcard';c.dataset.name=v.name;
+    c.innerHTML='<div class="nm">'+v.name+'</div><div class="lg">'+v.language+(v.default?' · padrão':'')+
+    '</div><div class="go">▶ usar esta voz</div>';
+    c.onclick=()=>{$('voice').value=v.name;[...grid.children].forEach(x=>x.classList.remove('sel'));
+      c.classList.add('sel');$('t').value='Olá! Eu sou a voz '+v.name+'.';window.scrollTo({top:0,behavior:'smooth'});};
+    grid.appendChild(c);});
+  const ts=await fetch('/tones').then(r=>r.json());
+  ts.forEach(t=>{const o=document.createElement('option');o.value=t.value;o.textContent=t.label;
+    if(t.value==='auto')o.selected=true;$('tone').appendChild(o);});
+}
 $('rate').oninput=e=>$('rv').textContent=parseFloat(e.target.value).toFixed(2)+'×';
 async function falar(){
   const p=new URLSearchParams({text:$('t').value,voice:$('voice').value,
     rate:$('rate').value,tone:$('tone').value});
   const b=$('b');b.disabled=true;b.textContent='sintetizando...';
-  try{const r=await fetch('/speak?'+p);if(!r.ok){alert('Erro ao sintetizar');return;}
-    const blob=await r.blob();const a=$('a');a.src=URL.createObjectURL(blob);a.play();}
+  try{const r=await fetch('/speak?'+p);if(!r.ok){const e=await r.json().catch(()=>({}));alert('Erro: '+(e.error||r.status));return;}
+    const blob=await r.blob();const url=URL.createObjectURL(blob);const a=$('a');a.src=url;a.play();
+    const dl=$('dl');dl.href='/speak?'+p.toString();dl.style.display='inline-block';}
   finally{b.disabled=false;b.textContent='🔊 Falar';}
 }
+load();
 </script></body></html>"""
 
 
@@ -108,7 +219,8 @@ class _Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         qs = parse_qs(urlparse(self.path).query)
         if path == "/":
-            self._send_bytes(_PLAYER.encode("utf-8"), "text/html; charset=utf-8")
+            self._send_bytes(_SITE.replace("__VERSION__", __version__).encode("utf-8"),
+                             "text/html; charset=utf-8")
         elif path == "/health":
             self._send_bytes(b"ok", "text/plain")
         elif path == "/voices":
@@ -118,14 +230,13 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json([{"value": t, "label": tone_mod.TONE_LABEL.get(t, t)}
                              for t in tone_mod.ALL_TONES])
         elif path == "/speak":
-            text = (qs.get("text", [""])[0])
+            text = qs.get("text", [""])[0]
             if not text.strip():
                 self._send_json({"error": "parâmetro 'text' vazio"}, 400)
                 return
             try:
                 wav = self._speak(text, qs.get("voice", [None])[0],
-                                  float(qs.get("rate", ["1"])[0]),
-                                  qs.get("tone", ["auto"])[0])
+                                  float(qs.get("rate", ["1"])[0]), qs.get("tone", ["auto"])[0])
             except Exception as exc:  # noqa: BLE001
                 self._send_json({"error": str(exc)}, 500)
                 return
@@ -161,10 +272,8 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def serve(host: str = "127.0.0.1", port: int = 0, voice=None, models_dir=None):
-    """Sobe o servidor. Retorna (httpd, url). voice só pré-aquece o cache."""
+    """Sobe o servidor (site + API). Retorna (httpd, url)."""
     _Handler.models_dir = models_dir
-    if voice:
-        _Handler._tts_cache = {}  # o cache é preenchido por requisição
     if port == 0:
         s = socket.socket()
         s.bind((host, 0))
