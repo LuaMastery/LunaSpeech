@@ -310,6 +310,110 @@ def _menu_config_entry(cfg: dict) -> dict:
     return cfg
 
 
+def _run_server(cfg: dict) -> None:
+    ui.clear()
+    ui.banner(__version__)
+    from . import server
+    try:
+        httpd, url = server.serve(voice=cfg["voice"])
+    except Exception as exc:  # noqa: BLE001
+        ui.error(f"Não foi possível iniciar o servidor: {exc}")
+        return
+    ui.success(f"Servidor LunaSpeech no ar: {url}")
+    ui.info(f"Player web:  {url}")
+    ui.info(f"API:  GET {url}/speak?text=olá   |   POST {url}/speak (JSON)")
+    ui.info("Pressione Ctrl+C para parar e voltar ao menu.")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print()
+    finally:
+        try:
+            httpd.shutdown()
+        except Exception:
+            pass
+        ui.success("Servidor parado.")
+
+
+def _run_discord(cfg: dict) -> None:
+    ui.clear()
+    ui.banner(__version__)
+    token = os.environ.get("DISCORD_TOKEN") or ui.ask("Cole o TOKEN do seu bot Discord:")
+    if not token:
+        ui.warn("Sem token não dá pra continuar.")
+        return
+    import importlib.util
+    if importlib.util.find_spec("discord") is None:
+        ui.step("Instalando discord.py (necessário pro bot)...")
+        rc = subprocess.call([sys.executable, "-m", "pip", "install", "discord.py"])
+        if rc != 0:
+            ui.error("Falha ao instalar discord.py. Tente: pip install discord.py")
+            return
+    ui.info("Iniciando o bot Discord... (Ctrl+C para parar)")
+    env = os.environ.copy()
+    env["DISCORD_TOKEN"] = token
+    env["LUNASPEECH_VOICE"] = cfg["voice"]
+    subprocess.call([sys.executable, "-m", "lunaspeech.discord_bot"], env=env)
+
+
+def _discord_info() -> None:
+    ui.clear()
+    ui.banner(__version__)
+    print(ui.fg(ui.VIOLET, "  💬  LunaSpeech no Discord"))
+    ui.hr()
+    print(dim("  O bot responde a !fala <texto> com o áudio (.wav) em anexo."))
+    print()
+    print("  1. Crie um app/bot em https://discord.com/developers/applications")
+    print("     e copie o TOKEN.")
+    print("  2. Instale o discord.py:  pip install discord.py")
+    print("  3. Ative o 'Message Content Intent' nas configurações do bot.")
+    print("  4. Convide o bot pro seu servidor.")
+    print("  5. Rode por aqui (Rodar o bot agora) ou no terminal:  lunaspeech discord")
+    print()
+    print(dim("  No Discord:  !fala Olá, pessoal!"))
+
+
+def _api_examples() -> None:
+    ui.clear()
+    ui.banner(__version__)
+    print(ui.fg(ui.VIOLET, "  📡  Usar o Luna em outros sistemas (API)"))
+    ui.hr()
+    print(dim("  Inicie o servidor (lunaspeech serve) e qualquer sistema chama /speak:"))
+    print()
+    print("  • Player web:  http://localhost:8000/")
+    print('  • curl:  curl "http://localhost:8000/speak?text=ol%C3%A1&voice=faber" -o out.wav')
+    print("  • Python:  requests.get('http://localhost:8000/speak',")
+    print("             params={'text':'olá','voice':'faber'}).content")
+    print('  • POST JSON:  POST /speak  {"text":"olá","voice":"faber","rate":1.0}')
+    print()
+    print(dim("  Endpoints: /  /speak  /voices  /tones  /health"))
+
+
+def _menu_integrations(cfg: dict) -> None:
+    while True:
+        ui.clear()
+        ui.banner(__version__)
+        idx = ui.select_menu("Integrações — transferir o Luna pra outros sistemas", [
+            ("🌐  Servidor web + API", "inicia um servidor local (outros sistemas chamam /speak)"),
+            ("💬  Discord (bot)", "como colocar o Luna no Discord"),
+            ("📡  Exemplos de API", "curl/Python/JS para outros sistemas"),
+            ("Voltar", None),
+        ])
+        if idx == 0:
+            _run_server(cfg)
+        elif idx == 1:
+            _discord_info()
+            ui.pause()
+            if ui.ask("Rodar o bot agora? [s/N]").lower().startswith("s"):
+                _run_discord(cfg)
+                continue
+        elif idx == 2:
+            _api_examples()
+        else:
+            return
+        ui.pause()
+
+
 def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -> int:
     if cfg.get("auto_update"):
         _maybe_auto_update()
@@ -324,11 +428,12 @@ def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -
             ("Testar fala", "digite um texto e ouça"),
             ("Buscar atualizações", "verifica nova versão no GitHub"),
             ("Configurações", "navegador (HTML) ou terminal (CLI)"),
+            ("Integrações", "transferir o Luna (Discord, servidor web/API)"),
             ("Reinstalar", "reinstala o LunaSpeech"),
             ("Listar vozes", "vozes disponíveis"),
             ("Sair", None),
         ])
-        if idx == -1 or idx == 5:
+        if idx == -1 or idx == 6:
             ui.info("Até logo! 🌙")
             break
         try:
@@ -341,9 +446,11 @@ def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -
             elif idx == 2:
                 cfg = _menu_config_entry(cfg)
             elif idx == 3:
+                _menu_integrations(cfg)
+            elif idx == 4:
                 _menu_reinstall()
                 ui.pause()
-            elif idx == 4:
+            elif idx == 5:
                 ui.clear()
                 ui.banner(__version__)
                 print(ui.fg(ui.VIOLET, "  Vozes disponíveis:"))
@@ -358,7 +465,56 @@ def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -
 
 
 # ------------------------------------------------------------------- entry
+def _cli_serve(extra: List[str]) -> int:
+    cfg = config_store.load()
+    host, port, voice = "127.0.0.1", 8000, cfg["voice"]
+    it = iter(extra)
+    for tok in it:
+        if tok in ("-p", "--port"):
+            try:
+                port = int(next(it))
+            except (StopIteration, ValueError):
+                pass
+        elif tok == "--host":
+            try:
+                host = next(it)
+            except StopIteration:
+                pass
+        elif tok in ("-v", "--voice"):
+            try:
+                voice = next(it)
+            except StopIteration:
+                pass
+    from . import server
+    try:
+        httpd, url = server.serve(host=host, port=port, voice=voice)
+    except Exception as exc:  # noqa: BLE001
+        ui.error(f"Não foi possível iniciar o servidor: {exc}")
+        return 1
+    print(f"🌙 LunaSpeech servidor no ar: {url}")
+    print(f"   Player web: {url}")
+    print(f"   API:        {url}/speak?text=olá&voice={voice}")
+    print("   Ctrl+C para parar.")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print()
+    finally:
+        httpd.shutdown()
+    return 0
+
+
+def _cli_discord() -> int:
+    from . import discord_bot
+    return discord_bot.main()
+
+
 def main(argv: Optional[List[str]] = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] in ("serve", "server"):
+        return _cli_serve(argv[1:])
+    if argv and argv[0] == "discord":
+        return _cli_discord()
     args = _build_parser().parse_args(argv)
     cfg = config_store.load()
     voice = args.voice or cfg["voice"]
