@@ -11,6 +11,10 @@ Versões (``mode``):
 - **flash**    — síntese em uma passada, resposta rápida (padrão);
 - **thinking** — gera várias variantes por sentença e escolhe a mais suave
   (menor fator de crista = menos picos/glitches). Demora mais, sai melhor.
+
+Emoções (``tone``): além da prosódia do modelo, aplicam **pitch** (com
+compensação de duração — não muda o tempo da fala) e **volume**.
+Perguntas ("?") recebem contorno ascendente automático (no motor).
 """
 
 from __future__ import annotations
@@ -38,6 +42,33 @@ def _crest(audio: np.ndarray) -> float:
     rms = float(np.sqrt(np.mean(a ** 2))) + 1e-9
     peak = float(a.max())
     return peak / rms
+
+
+def _resample(audio: np.ndarray, factor: float) -> np.ndarray:
+    """Reamostra o áudio: factor > 1 deixa mais AGUDO e mais CURTO (pitch shift).
+
+    Usado junto com a compensação no length_scale: sintetiza-se k× mais lento e
+    reamostra-se por k → duração original com pitch × k.
+    """
+    if abs(factor - 1.0) < 1e-3:
+        return audio
+    n = audio.size
+    new_n = int(n / factor)
+    if n < 2 or new_n < 2:
+        return audio
+    idx = np.linspace(0.0, n - 1.0, new_n)
+    return np.interp(idx, np.arange(n), audio).astype(np.float32)
+
+
+def _apply_tone_audio(audio: np.ndarray, p: dict) -> np.ndarray:
+    """Aplica o pitch (já com duração compensada) e o ganho do tom."""
+    k = float(p.get("pitch", 1.0))
+    if abs(k - 1.0) > 1e-3:
+        audio = _resample(audio, k)
+    g = float(p.get("gain", 1.0))
+    if abs(g - 1.0) > 1e-3:
+        audio = (audio * g).astype(np.float32)
+    return audio
 
 
 class LunaSpeech:
@@ -68,9 +99,14 @@ class LunaSpeech:
 
     # ------------------------------------------------------------- síntese
     def _params(self, text: str, tone: str, rate: float):
+        """Retorna (tom_detectado, params, length_scale_com_pitch_compensado)."""
         detected = tone if tone != "auto" else detect_tone(text)
         p = prosody_for_tone(detected)
-        length_scale = (p["length_scale"] / rate) if rate else p["length_scale"]
+        k = float(p.get("pitch", 1.0))
+        # pitch ×k com duração original: sintetiza k× mais lento…
+        length_scale = (p["length_scale"] * k) if k else p["length_scale"]
+        # …e o rate do usuário continua valendo por cima
+        length_scale = (length_scale / rate) if rate else length_scale
         return detected, p, length_scale
 
     def _synthesize_thinking(self, text, p, length_scale, speaker, detected) -> SynthesisResult:
@@ -89,8 +125,9 @@ class LunaSpeech:
         for i in range(n_sentences):
             candidates = [run[i].audio for run in runs if i < len(run)]
             best_chunks.append(min(candidates, key=_crest))
+        audio = concatenate(best_chunks)
         return SynthesisResult(
-            audio=concatenate(best_chunks),
+            audio=_apply_tone_audio(audio, p),
             sample_rate=self.engine.sample_rate,
             missing_phonemes=self.engine.missing_phonemes,
             tone=detected,
@@ -113,6 +150,7 @@ class LunaSpeech:
             text, length_scale=length_scale,
             noise_scale=p["noise_scale"], noise_w=p["noise_w"], speaker=speaker,
         )
+        result.audio = _apply_tone_audio(result.audio, p)
         result.tone = detected
         return result
 
@@ -120,10 +158,15 @@ class LunaSpeech:
                speaker: Optional[str] = None) -> Iterator[AudioChunk]:
         """Sintetiza por sentença (para streaming / baixa latência)."""
         detected, p, length_scale = self._params(text, tone, rate)
-        return self.engine.stream(
-            text, length_scale=length_scale,
-            noise_scale=p["noise_scale"], noise_w=p["noise_w"], speaker=speaker,
-        )
+
+        def _gen():
+            for chunk in self.engine.stream(
+                    text, length_scale=length_scale,
+                    noise_scale=p["noise_scale"], noise_w=p["noise_w"], speaker=speaker):
+                yield AudioChunk(audio=_apply_tone_audio(chunk.audio, p),
+                                 sample_rate=chunk.sample_rate)
+
+        return _gen()
 
     def say(self, text: str, path: Union[str, Path] = "lunaspeech_out.wav",
             *, rate: float = 1.0, tone: str = "auto",

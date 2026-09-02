@@ -1,13 +1,16 @@
-"""Tom de voz emocional (prosódia por emoção).
+"""Tom de voz emocional (prosódia, pitch e volume por emoção).
 
 Detecta a emoção do texto em pt-BR (amigável, alegre, raivoso, triste) e mapeia
-para os parâmetros de prosódia do modelo VITS (``noise_scale``, ``length_scale``,
-``noise_w``) — as "escalas" que controlam expressividade, velocidade e ritmo.
+para parâmetros de síntese e pós-processamento:
 
-Como o modelo faber não é treinado em emoção, o efeito é uma *modelagem de prosódia*
-(sutil, mas perceptível): texto amigável fica mais calmo/expressivo; raivoso fica
-mais rápido/tenso; triste fica lento/monótono. Deve melhorar muito com a "voz Luna"
-própria (Fase 4).
+- ``noise_scale`` / ``noise_w``  → variação de prosódia e ritmo (escalas do VITS);
+- ``length_scale``               → velocidade;
+- ``pitch``                      → tom (1.06 ≈ +1 semitom; aplicado com
+  compensação de duração, então NÃO altera o tempo da fala);
+- ``gain``                       → volume (raivoso mais forte, triste mais baixo).
+
+Perguntas (frases terminadas em "?") recebem automaticamente um contorno de
+pitch ascendente no final — o tom de dúvida — aplicado no motor.
 """
 
 from __future__ import annotations
@@ -95,13 +98,15 @@ def detect_tone(text: str) -> str:
 
 
 # ----------------------------------------------------------- prosódia
-# Mapeamento tom → escalas do VITS (valores moderados p/ evitar artefatos).
+# tom → parâmetros de síntese e de áudio.
+# pitch ≠ 1 é aplicado com compensação de duração (não altera o tempo da fala).
 TONE_PROSODY: Dict[str, Dict[str, float]] = {
-    "neutro":   {"noise_scale": 0.667, "length_scale": 1.00, "noise_w": 0.80},
-    "amigavel": {"noise_scale": 0.85,  "length_scale": 1.08, "noise_w": 0.90},  # +caloroso/expressivo
-    "alegre":   {"noise_scale": 0.95,  "length_scale": 0.95, "noise_w": 1.00},  # +animado/rápido
-    "raivoso":  {"noise_scale": 0.55,  "length_scale": 0.85, "noise_w": 0.45},  # +tenso/rápido/ênfase
-    "triste":   {"noise_scale": 0.30,  "length_scale": 1.20, "noise_w": 0.35},  # +lento/monótono
+    # length_scale calibrado empiricamente (o noise_scale também afeta a duração)
+    "neutro":   {"noise_scale": 0.667, "length_scale": 1.00, "noise_w": 0.80, "pitch": 1.00, "gain": 1.00},
+    "amigavel": {"noise_scale": 0.88,  "length_scale": 1.10, "noise_w": 0.95, "pitch": 0.99, "gain": 1.03},
+    "alegre":   {"noise_scale": 0.95,  "length_scale": 0.75, "noise_w": 1.00, "pitch": 1.06, "gain": 1.10},
+    "raivoso":  {"noise_scale": 0.55,  "length_scale": 0.75, "noise_w": 0.40, "pitch": 1.04, "gain": 1.50},
+    "triste":   {"noise_scale": 0.30,  "length_scale": 1.70, "noise_w": 0.35, "pitch": 0.92, "gain": 0.78},
 }
 
 TONE_LABEL = {
@@ -113,5 +118,5 @@ ALL_TONES = ["auto", "neutro", "amigavel", "alegre", "raivoso", "triste"]
 
 
 def prosody_for_tone(tone: str) -> Dict[str, float]:
-    """Retorna {noise_scale, length_scale, noise_w} para o tom dado."""
+    """Retorna {noise_scale, length_scale, noise_w, pitch, gain} do tom dado."""
     return dict(TONE_PROSODY.get(tone, TONE_PROSODY["neutro"]))

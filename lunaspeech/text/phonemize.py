@@ -15,6 +15,7 @@ IPA já decomposta em codepoints NFD (formato esperado pelo ``phoneme_id_map``).
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import unicodedata
@@ -47,6 +48,17 @@ def _find_espeak() -> str:
     return ""
 
 
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+_CLAUSE_CONTINUERS = {",", ":", ";"}   # NÃO terminam a frase
+_SENTENCE_FINALS = {".", "!", "?"}     # terminam a frase
+
+
+def _split_sentences(text: str) -> List[str]:
+    """Divide o texto em sentenças preservando o terminador (?, ., !)."""
+    parts = _SENTENCE_SPLIT_RE.split((text or "").strip())
+    return [p for p in parts if p.strip()]
+
+
 def _phonemize_with_espeak_cli(text: str, voice: str) -> List[List[str]]:
     binary = _find_espeak()
     if not binary:
@@ -62,30 +74,45 @@ def _phonemize_with_espeak_cli(text: str, voice: str) -> List[List[str]]:
             "      Linux   : sudo apt install espeak-ng\n"
             "      manual  : https://github.com/espeak-ng/espeak-ng/releases"
         )
-    # Texto via stdin (evita problemas de code page/escape no argv do Windows).
-    # Saída decodificada como UTF-8: o espeak-ng emite IPA em UTF-8 (ˈ, ə, ̃...),
-    # e no Windows o codec padrão (cp1252) quebraria a leitura.
-    result = subprocess.run(
-        [binary, "-v", voice, "-q", "--ipa"],
-        input=text,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=True,
-    )
     sentences: List[List[str]] = []
-    for line in (result.stdout or "").splitlines():
-        line = line.strip()
-        if not line:
+    # Uma chamada espeak por SENTENÇA (não por cláusula): cláusulas internas
+    # (vírgula, dois-pontos, ponto-e-vírgula) são JUNTAS na mesma frase,
+    # com a vírgula virando pausa curta — não ponto final.
+    for sent in _split_sentences(text):
+        # Texto via stdin (evita code page/escape no argv do Windows).
+        # Saída em UTF-8: o espeak-ng emite IPA em UTF-8 (ˈ, ə, ̃...).
+        result = subprocess.run(
+            [binary, "-v", voice, "-q", "--ipa"],
+            input=sent,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+        )
+        phonemes: List[str] = []
+        for line in (result.stdout or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            # NFD separa diacríticos ('ã' -> 'a' + '̃') para casar com o
+            # phoneme_id_map. Remove artefatos de tie/separador.
+            ph = [c for c in unicodedata.normalize("NFD", line) if c not in _ESPEAK_JUNK]
+            if not ph:
+                continue
+            phonemes.extend(ph)
+            if ph[-1] in _CLAUSE_CONTINUERS:
+                phonemes.append(" ")  # vírgula: pausa curta DENTRO da frase
+        if not phonemes:
             continue
-        # NFD: separa diacríticos (ex.: 'ã' -> 'a' + '̃') para casar com o
-        # phoneme_id_map do modelo. Remove artefatos de tie/separador.
-        phonemes = [
-            c for c in unicodedata.normalize("NFD", line) if c not in _ESPEAK_JUNK
-        ]
-        if phonemes:
-            sentences.append(phonemes)
+        # Garante o terminador final da sentença original — em especial o "?",
+        # que dá o tom de pergunta/dúvida (mesmo se o espeak não o emitir).
+        final = sent.rstrip()[-1] if sent.rstrip() else ""
+        if final in _SENTENCE_FINALS or final in _CLAUSE_CONTINUERS:
+            while phonemes and phonemes[-1] in (_CLAUSE_CONTINUERS | _SENTENCE_FINALS | {" "}):
+                phonemes.pop()
+            phonemes.append(final)
+        sentences.append(phonemes)
     return sentences
 
 

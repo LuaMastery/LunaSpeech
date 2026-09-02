@@ -34,6 +34,30 @@ _EOS = "$"   # fim de utterance
 _PAD = "_"   # separador/padding entre fonemas
 
 
+# Contorno de pergunta: sobe o pitch progressivamente no fim da frase (tom de dúvida)
+_QUESTION_TAIL = 0.38   # fração final da frase que recebe o contorno
+_QUESTION_RISE = 1.17   # elevação máxima do pitch (~+2,7 semitons)
+
+
+def _question_contour(audio: np.ndarray) -> np.ndarray:
+    """Aplica subida progressiva de pitch no final (intonação de pergunta)."""
+    n = audio.size
+    if n < 1600:  # áudio muito curto: não mexe
+        return audio
+    tail_start = int(n * (1.0 - _QUESTION_TAIL))
+    head = audio[:tail_start]
+    tail = audio[tail_start:]
+    m = tail.size
+    avg = (1.0 + _QUESTION_RISE) / 2.0
+    out_len = max(8, int(m / avg))
+    factors = np.linspace(1.0, _QUESTION_RISE, out_len)
+    positions = np.cumsum(factors)
+    positions -= positions[0]
+    idx = np.clip(positions.astype(np.int64), 0, m - 1)
+    new_tail = tail[idx].astype(audio.dtype)
+    return np.concatenate([head, new_tail])
+
+
 class PiperOnnxEngine(TTSEngine):
     """Executa um modelo Piper (VITS em ONNX) de forma standalone."""
 
@@ -153,6 +177,10 @@ class PiperOnnxEngine(TTSEngine):
                 ids, length_scale=ls, noise_scale=ns, noise_w=nw, speaker=speaker
             )
             if audio.size:
+                # pergunta? aplica intonação ascendente (tom de dúvida)
+                last = next((p for p in reversed(sentence_phonemes) if p != " "), "")
+                if last == "?":
+                    audio = _question_contour(audio)
                 yield AudioChunk(audio=audio, sample_rate=self.sample_rate)
 
     def synthesize(
