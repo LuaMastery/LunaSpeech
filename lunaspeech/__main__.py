@@ -157,7 +157,7 @@ def _maybe_auto_update() -> None:
 
 
 # ----------------------------------------------------------- painel (menu)
-def _menu_test(voice: str, models_dir: Optional[str], rate: float, tone: str, test_only: bool) -> None:
+def _menu_test(cfg: dict, models_dir: Optional[str]) -> None:
     ui.clear()
     ui.banner(__version__)
     text = ui.ask("Texto para falar:")
@@ -169,12 +169,13 @@ def _menu_test(voice: str, models_dir: Optional[str], rate: float, tone: str, te
         from .text.numbers import spell_words
         text = spell_words(text)
         ui.info("Soletrando automaticamente (detectado).")
+    voice, rate, tone = cfg["voice"], cfg["rate"], cfg["tone"]
     try:
         tts = _load_tts(voice, models_dir)
     except Exception as exc:  # noqa: BLE001
         ui.error(f"Não foi possível carregar a voz '{voice}':\n{exc}")
         return
-    if test_only:
+    if cfg.get("test_only", False):
         _synthesize_play_only(tts, text, rate, tone, cfg.get("mode", "flash"))
         return
     out = os.path.join(os.path.expanduser("~"), "lunaspeech_menu.wav")
@@ -492,7 +493,7 @@ def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -
             break
         try:
             if idx == 0:
-                _menu_test(cfg["voice"], models_dir, cfg["rate"], cfg["tone"], cfg.get("test_only", False))
+                _menu_test(cfg, models_dir)
                 ui.pause()
             elif idx == 1:
                 _menu_check_update()
