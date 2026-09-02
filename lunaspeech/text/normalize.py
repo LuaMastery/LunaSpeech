@@ -183,6 +183,23 @@ def _temp_repl(m: re.Match) -> str:
     return f"{number_token_to_words(m['num'])} graus {scale}"
 
 
+# ------------------------------------------------- sequências de letras isoladas
+# "agora eu vou soletrar um A, B, C, D, E" -> soletra APENAS o A, B, C, D, E;
+# o resto da frase é falado normalmente.
+_LC = r"[A-ZÀ-Ý]"
+_LETTER_SEQ_RE = re.compile(
+    rf"\b{_LC}(?:\s*[,;]\s*{_LC}){{1,}}\s*[,;]?"   # A, B, C (vírgulas) — 2+
+    rf"|\b{_LC}(?:\s+{_LC}){{2,}}"                    # A B C (espaços) — 3+
+)
+
+
+def _expand_letter_sequences(text: str) -> str:
+    """Soletra apenas as sequências de letras isoladas do texto (não o resto)."""
+    def repl(m: re.Match) -> str:
+        return re.sub(r"[A-ZÀ-Ý]", lambda c: spell_letters(c.group()), m.group(0))
+    return _LETTER_SEQ_RE.sub(repl, text)
+
+
 # --------------------------------------------------------------------- siglas
 # Uma palavra em MAIÚSCULAS só é soletrada se parecer sigla DE VERDADE.
 # Sequências de 2+ palavras em maiúsculas = GRITO/ÊNFASE (não soletra) —
@@ -262,6 +279,7 @@ def normalize_text(text: str) -> str:
     text = _DATE_RE.sub(_date_repl, text)
     text = _TIME_RE.sub(_time_repl, text)
     text = _TIME_H_RE.sub(_time_h_repl, text)
+    text = _expand_letter_sequences(text)
     text = _expand_acronyms(text)
     text = _TEMP_RE.sub(_temp_repl, text)
     text = _ORDINAL_RE.sub(_ordinal_repl, text)

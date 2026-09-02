@@ -139,3 +139,20 @@ def test_question_contour_clearly_rises_e2e():
     rq = tts.synthesize("Tudo bem com voce?", tone="neutro")
     ra = tts.synthesize("Tudo bem com voce.", tone="neutro")
     assert zcr_tail(rq.audio) > zcr_tail(ra.audio) * 1.10  # sobe no fim
+
+
+def test_selective_spelling_only_the_letter_part():
+    """Soletra APENAS a sequência de letras; o resto da frase é falado."""
+    from lunaspeech.text.normalize import normalize_text as n
+    out = n("boa tarde, tudo bem, agora eu vou soletrar um A, B, C, D, E")
+    assert out == "boa tarde, tudo bem, agora eu vou soletrar um á, bê, cê, dê, éi"
+    # espaço em vez de vírgula também
+    assert n("vou soletrar A B C D") == "vou soletrar á bê cê dê"
+    # só as letras
+    assert n("A, B, C") == "á, bê, cê"
+
+
+def test_single_letter_words_not_spelled():
+    from lunaspeech.text.normalize import normalize_text as n
+    assert n("E aí pessoal, tudo bem?") == "E aí pessoal, tudo bem?"
+    assert n("soletrar a letra X agora") == "soletrar a letra X agora"

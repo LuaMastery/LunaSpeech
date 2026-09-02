@@ -116,8 +116,8 @@ code{background:#0a0e17;padding:2px 6px;border-radius:5px;font-size:13px;color:v
     </div>
     <div class="row">
       <div><label>Soletração</label><select id="spell">
-        <option value="auto">automática (detecta)</option>
-        <option value="on">sempre soletrar</option>
+        <option value="auto">automática (só o que precisar)</option>
+        <option value="on">sempre (soletra TODO o texto)</option>
         <option value="off">nunca soletrar</option></select></div>
       <div><label>Versão</label><select id="mode">
         <option value="flash">⚡ Flash (rápida)</option>
