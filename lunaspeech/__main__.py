@@ -141,19 +141,45 @@ def _startup_status(voice: str, models_dir: Optional[str]) -> None:
     ui.hr()
 
 
+def _restart_program() -> None:
+    """Fecha o Luna atual e inicia de novo (no mesmo terminal), já na versão nova."""
+    args = [sys.executable, "-m", "lunaspeech"] + sys.argv[1:]
+    os.environ["LUNASPEECH_RESTARTED"] = "1"  # evita laço infinito de reinício
+    ui.info("Reiniciando o LunaSpeech... 🌙")
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+    ui.show_cursor()  # devolve o cursor antes de trocar de processo
+    try:
+        os.execv(sys.executable, args)  # substitui o processo (mesmo terminal)
+    except Exception:
+        # fallback: abre um novo processo e encerra o atual
+        subprocess.Popen(args)
+        sys.exit(0)
+
+
 def _maybe_auto_update() -> None:
     from . import update
     try:
         latest = update.latest_version()
     except Exception:
         return
-    if latest and update.is_newer(latest, __version__):
-        ui.step(f"Atualização automática: {__version__} → {latest}")
-        rc = update.self_update(latest)
-        if rc == 0:
-            ui.success("Atualizado! Reinicie o LunaSpeech para concluir.")
-        else:
-            ui.warn(f"Atualização automática falhou (código {rc}).")
+    if not (latest and update.is_newer(latest, __version__)):
+        return
+    ui.step(f"Atualização automática: {__version__} → {latest}")
+    rc = update.self_update(latest)
+    if rc != 0:
+        ui.warn(f"Atualização automática falhou (código {rc}).")
+        return
+    ui.success(f"Versão {latest} instalada!")
+    if os.environ.get("LUNASPEECH_RESTARTED") == "1":
+        ui.warn("Reinicie o LunaSpeech para concluir a atualização.")
+        return
+    import time
+    time.sleep(1.2)  # dá tempo de ler a mensagem
+    _restart_program()
 
 
 # ----------------------------------------------------------- painel (menu)
@@ -198,9 +224,14 @@ def _menu_check_update() -> None:
         ui.warn(f"Nova versão disponível: {latest} (você está na {__version__}).")
         if ui.ask(f"Atualizar para {latest}? [s/N]").lower().startswith("s"):
             rc = update.self_update(latest)
-            (ui.success if rc == 0 else ui.error)(
-                "Atualização concluída." if rc == 0 else f"Falha ao atualizar (código {rc}).")
-            ui.info("Reinicie o LunaSpeech para usar a nova versão.")
+            if rc == 0:
+                ui.success(f"Versão {latest} instalada!")
+                if os.environ.get("LUNASPEECH_RESTARTED") == "1":
+                    ui.warn("Reinicie o LunaSpeech para concluir.")
+                    return
+                _restart_program()
+            else:
+                ui.error(f"Falha ao atualizar (código {rc}).")
     else:
         ui.success(f"Você já está na versão mais recente ({__version__}).")
 
