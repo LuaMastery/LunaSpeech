@@ -63,6 +63,15 @@ def _form_html(cfg: dict) -> str:
        <input type="number" step="0.05" min="0.5" max="2.0" name="rate" value="{cfg['rate']}"></div>
   <div><label class="lbl">Tom de voz</label><select name="tone">{tone_opts}</select></div>
 </div>
+<div class="row">
+  <div><label class="lbl">Soletração</label><select name="spell_mode">
+    <option value="auto" {"selected" if cfg.get("spell_mode","auto")=="auto" else ""}>automática (detecta)</option>
+    <option value="on" {"selected" if cfg.get("spell_mode")=="on" else ""}>sempre soletrar</option>
+    <option value="off" {"selected" if cfg.get("spell_mode")=="off" else ""}>nunca soletrar</option></select></div>
+  <div><label class="lbl">Versão</label><select name="mode">
+    <option value="flash" {"selected" if cfg.get("mode","flash")=="flash" else ""}>⚡ Flash (rápida)</option>
+    <option value="thinking" {"selected" if cfg.get("mode")=="thinking" else ""}>🧠 Thinking (aprimorada)</option></select></div>
+</div>
 <label class="chk"><input type="checkbox" name="auto_update" {au}> Atualização automática ao abrir o painel</label>
 <label class="chk"><input type="checkbox" name="test_only" {to}> Modo só teste (toca o áudio sem salvar arquivo)</label>
 <button type="submit">💾 Salvar configurações</button>
@@ -105,6 +114,10 @@ class _Handler(BaseHTTPRequestHandler):
         cfg["tone"] = get("tone", cfg["tone"])
         cfg["auto_update"] = "auto_update" in params
         cfg["test_only"] = "test_only" in params
+        if get("spell_mode", "") in ("auto", "on", "off"):
+            cfg["spell_mode"] = get("spell_mode", "")
+        if get("mode", "") in ("flash", "thinking"):
+            cfg["mode"] = get("mode", "")
         config_store.save(cfg)
         cfg["_saved"] = True
         self._send(page(cfg))

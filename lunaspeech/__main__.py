@@ -34,6 +34,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("-t", "--tone", default=None, choices=tone_mod.ALL_TONES,
                    help="Tom de voz (auto detecta a emoção do texto).")
     p.add_argument("--spell", action="store_true", help="Soletra o texto letra por letra.")
+    p.add_argument("--mode", default=None, choices=["flash", "thinking"],
+                   help="Versão: flash (rápida) ou thinking (lenta e aprimorada).")
     p.add_argument("--models-dir", default=None, help="Diretório de vozes.")
     p.add_argument("--download-only", action="store_true", help="Apenas prepara a voz, sem sintetizar.")
     p.add_argument("-l", "--list-voices", action="store_true", help="Lista as vozes disponíveis.")
@@ -69,13 +71,23 @@ def _play(path: Path) -> bool:
         return False
 
 
+def _should_spell(text: str, spell_mode: str) -> bool:
+    """Decide se soletra: flag on/off, ou auto (detecta pelo texto)."""
+    if spell_mode == "on":
+        return True
+    if spell_mode == "off":
+        return False
+    from .text.numbers import should_spell
+    return should_spell(text)
+
+
 def _tom(tone: str) -> str:
     return tone_mod.TONE_LABEL.get(tone, tone)
 
 
-def _synthesize_save(tts, text: str, out: str, rate: float, tone: str) -> int:
+def _synthesize_save(tts, text: str, out: str, rate: float, tone: str, mode: str = "flash") -> int:
     from .audio import write_wav
-    result = tts.synthesize(text, rate=rate, tone=tone)
+    result = tts.synthesize(text, rate=rate, tone=tone, mode=mode)
     if result.audio.size == 0:
         ui.error("Nenhum áudio gerado (texto vazio ou sem fonemas reconhecidos).")
         if result.missing_phonemes:
@@ -89,10 +101,10 @@ def _synthesize_save(tts, text: str, out: str, rate: float, tone: str) -> int:
     return 0
 
 
-def _synthesize_play_only(tts, text: str, rate: float, tone: str) -> int:
+def _synthesize_play_only(tts, text: str, rate: float, tone: str, mode: str = "flash") -> int:
     """Modo só teste: toca o áudio sem salvar arquivo (arquivo temporário é apagado)."""
     from .audio import write_wav
-    result = tts.synthesize(text, rate=rate, tone=tone)
+    result = tts.synthesize(text, rate=rate, tone=tone, mode=mode)
     if result.audio.size == 0:
         ui.error("Nenhum áudio gerado (texto vazio ou sem fonemas reconhecidos).")
         return 1
@@ -152,19 +164,21 @@ def _menu_test(voice: str, models_dir: Optional[str], rate: float, tone: str, te
     if not text:
         ui.warn("Texto vazio.")
         return
-    if ui.ask("Soletrar letra por letra? [s/N]").lower().startswith("s"):
+    # soletração automática (config: auto | on | off)
+    if _should_spell(text, cfg.get("spell_mode", "auto")):
         from .text.numbers import spell_words
         text = spell_words(text)
+        ui.info("Soletrando automaticamente (detectado).")
     try:
         tts = _load_tts(voice, models_dir)
     except Exception as exc:  # noqa: BLE001
         ui.error(f"Não foi possível carregar a voz '{voice}':\n{exc}")
         return
     if test_only:
-        _synthesize_play_only(tts, text, rate, tone)
+        _synthesize_play_only(tts, text, rate, tone, cfg.get("mode", "flash"))
         return
     out = os.path.join(os.path.expanduser("~"), "lunaspeech_menu.wav")
-    if _synthesize_save(tts, text, out, rate, tone) == 0:
+    if _synthesize_save(tts, text, out, rate, tone, cfg.get("mode", "flash")) == 0:
         ui.info(f"Salvo em: {out}")
         if ui.ask("Reproduzir agora? [s/N]").lower().startswith("s") and not _play(Path(out)):
             ui.warn("Não consegui reproduzir — abra o arquivo manualmente.")
@@ -245,6 +259,30 @@ def _toggle(cfg: dict, key: str, label: str) -> None:
     ui.success(f"{label}: {'ligado' if cfg[key] else 'desligado'}")
 
 
+def _pick_spell_mode(cfg: dict) -> None:
+    ui.clear(); ui.banner(__version__)
+    labels = [("automática (a Luna detecta pelo texto)", "auto"),
+              ("sempre soletrar", "on"), ("nunca soletrar", "off")]
+    cur = next((i for i, (_, v) in enumerate(labels) if v == cfg.get("spell_mode", "auto")), 0)
+    idx = ui.select_menu("Soletração", [(lbl, None) for lbl, _ in labels], current=cur)
+    if idx >= 0:
+        cfg["spell_mode"] = labels[idx][1]
+        config_store.save(cfg)
+        ui.success(f"Soletração: {labels[idx][0]}")
+
+
+def _pick_mode(cfg: dict) -> None:
+    ui.clear(); ui.banner(__version__)
+    labels = [("⚡ Flash — resposta rápida", "flash"),
+              ("🧠 Thinking — mais lenta, voz aprimorada", "thinking")]
+    cur = 1 if cfg.get("mode", "flash") == "thinking" else 0
+    idx = ui.select_menu("Versão da Luna", [(lbl, None) for lbl, _ in labels], current=cur)
+    if idx >= 0:
+        cfg["mode"] = labels[idx][1]
+        config_store.save(cfg)
+        ui.success(f"Versão: {labels[idx][0]}")
+
+
 def _menu_settings_cli(cfg: dict) -> dict:
     while True:
         ui.clear()
@@ -253,6 +291,9 @@ def _menu_settings_cli(cfg: dict) -> dict:
             (f"Voz padrão: {cfg['voice']}", "escolher a voz"),
             (f"Velocidade: {cfg['rate']:.2f}×", "ajustar"),
             (f"Tom de voz: {_tom(cfg['tone'])}", "auto detecta emoção"),
+            (f"Soletração: {cfg.get('spell_mode', 'auto')}", "auto/ligada/desligada"),
+            (f"Versão: {'⚡ Flash' if cfg.get('mode', 'flash') == 'flash' else '🧠 Thinking'}",
+             "flash (rápida) ou thinking (aprimorada)"),
             (f"Atualização automática: {'ligada' if cfg.get('auto_update') else 'desligada'}", "liga/desliga"),
             (f"Modo só teste: {'ligado' if cfg.get('test_only') else 'desligado'}", "toca sem salvar arquivo"),
             ("Restaurar padrões", None),
@@ -265,10 +306,14 @@ def _menu_settings_cli(cfg: dict) -> dict:
         elif idx == 2:
             _pick_tone(cfg)
         elif idx == 3:
-            _toggle(cfg, "auto_update", "Atualização automática")
+            _pick_spell_mode(cfg)
         elif idx == 4:
-            _toggle(cfg, "test_only", "Modo só teste")
+            _pick_mode(cfg)
         elif idx == 5:
+            _toggle(cfg, "auto_update", "Atualização automática")
+        elif idx == 6:
+            _toggle(cfg, "test_only", "Modo só teste")
+        elif idx == 7:
             cfg = dict(config_store.DEFAULTS)
             config_store.save(cfg)
             ui.success("Configurações restauradas para o padrão.")
@@ -568,14 +613,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         ui.error("Nenhum texto fornecido.")
         return 2
 
-    if getattr(args, "spell", False):
+    mode = args.mode or cfg.get("mode", "flash")
+    spell_mode = "on" if args.spell else cfg.get("spell_mode", "auto")
+    if _should_spell(text, spell_mode):
         from .text.numbers import spell_words
         text = spell_words(text)
 
     if cfg.get("test_only"):
-        return _synthesize_play_only(tts, text, rate, tone)
+        return _synthesize_play_only(tts, text, rate, tone, mode)
 
-    rc = _synthesize_save(tts, text, args.out, rate, tone)
+    rc = _synthesize_save(tts, text, args.out, rate, tone, mode)
     if rc == 0:
         s = platform.system()
         hint = (f'start "" "{args.out}"' if s == "Windows"

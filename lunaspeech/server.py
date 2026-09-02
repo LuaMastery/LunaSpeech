@@ -114,6 +114,15 @@ code{background:#0a0e17;padding:2px 6px;border-radius:5px;font-size:13px;color:v
       <div><label>Velocidade · <span id="rv">1.00×</span></label>
         <input type="range" id="rate" min="0.5" max="2" step="0.05" value="1"></div>
     </div>
+    <div class="row">
+      <div><label>Soletração</label><select id="spell">
+        <option value="auto">automática (detecta)</option>
+        <option value="on">sempre soletrar</option>
+        <option value="off">nunca soletrar</option></select></div>
+      <div><label>Versão</label><select id="mode">
+        <option value="flash">⚡ Flash (rápida)</option>
+        <option value="thinking">🧠 Thinking (aprimorada)</option></select></div>
+    </div>
     <div class="actions">
       <button id="b" onclick="falar()">🔊 Falar</button>
       <a class="dl" id="dl" href="#" style="display:none">⬇ Baixar .wav</a>
@@ -175,7 +184,7 @@ async function load(){
 $('rate').oninput=e=>$('rv').textContent=parseFloat(e.target.value).toFixed(2)+'×';
 async function falar(){
   const p=new URLSearchParams({text:$('t').value,voice:$('voice').value,
-    rate:$('rate').value,tone:$('tone').value});
+    rate:$('rate').value,tone:$('tone').value,spell:$('spell').value,mode:$('mode').value});
   const b=$('b');b.disabled=true;b.textContent='sintetizando...';
   try{const r=await fetch('/speak?'+p);if(!r.ok){const e=await r.json().catch(()=>({}));alert('Erro: '+(e.error||r.status));return;}
     const blob=await r.blob();const url=URL.createObjectURL(blob);const a=$('a');a.src=url;a.play();
@@ -206,11 +215,15 @@ class _Handler(BaseHTTPRequestHandler):
     def _send_json(self, obj, code=200):
         self._send_bytes(json.dumps(obj).encode("utf-8"), "application/json; charset=utf-8", code)
 
-    def _speak(self, text, voice, rate, tone):
+    def _speak(self, text, voice, rate, tone, spell="auto", mode="flash"):
         import soundfile as sf
         from .audio import normalize_peak
+        from .text.numbers import should_spell, spell_words
+        if spell == "on" or (spell == "auto" and should_spell(text)):
+            text = spell_words(text)
         tts = self._get_tts(voice or voices_mod.DEFAULT_VOICE)
-        result = tts.synthesize(text, rate=rate or 1.0, tone=tone or "auto")
+        result = tts.synthesize(text, rate=rate or 1.0, tone=tone or "auto",
+                                mode=mode or "flash")
         buf = io.BytesIO()
         sf.write(buf, normalize_peak(result.audio), result.sample_rate, format="WAV", subtype="PCM_16")
         return buf.getvalue()
@@ -236,7 +249,8 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             try:
                 wav = self._speak(text, qs.get("voice", [None])[0],
-                                  float(qs.get("rate", ["1"])[0]), qs.get("tone", ["auto"])[0])
+                                  float(qs.get("rate", ["1"])[0]), qs.get("tone", ["auto"])[0],
+                                  qs.get("spell", ["auto"])[0], qs.get("mode", ["flash"])[0])
             except Exception as exc:  # noqa: BLE001
                 self._send_json({"error": str(exc)}, 500)
                 return
@@ -261,7 +275,8 @@ class _Handler(BaseHTTPRequestHandler):
             return
         try:
             wav = self._speak(text, data.get("voice"), float(data.get("rate", 1.0)),
-                              data.get("tone", "auto"))
+                              data.get("tone", "auto"), data.get("spell", "auto"),
+                              data.get("mode", "flash"))
         except Exception as exc:  # noqa: BLE001
             self._send_json({"error": str(exc)}, 500)
             return

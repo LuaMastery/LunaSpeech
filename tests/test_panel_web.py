@@ -85,7 +85,7 @@ def test_synthesize_play_only(monkeypatch):
     monkeypatch.setattr(m, "_play", lambda p: True)
 
     class FakeTTS:
-        def synthesize(self, text, rate=1.0, tone="auto"):
+        def synthesize(self, text, rate=1.0, tone="auto", mode=None):
             return SynthesisResult(audio=np.ones(8000, dtype=np.float32) * 0.3,
                                    sample_rate=16000, tone="neutro")
 

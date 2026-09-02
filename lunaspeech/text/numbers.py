@@ -250,3 +250,28 @@ def spell_words(text: str) -> str:
     import re
 
     return re.sub(r"[^\W\d_]+", lambda m: spell_letters(m.group(0)), text, flags=re.UNICODE)
+
+
+def should_spell(text: str) -> bool:
+    """Detecta automaticamente se o texto deve ser soletrado (modo automático).
+
+    Regras conservadoras (frases normais NÃO são soletradas):
+    * mais de uma palavra → falar normalmente;
+    * código com letras E dígitos ("AB12", "x9k") → soletrar;
+    * palavra curta sem vogais ("xkcd", "www", "str") → soletrar.
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    words = t.split()
+    if len(words) != 1:
+        return False
+    w = words[0].strip(".,!?;:()-")
+    letters = [c for c in w.lower() if c.isalpha()]
+    digits = [c for c in w if c.isdigit()]
+    if letters and digits:  # código alfanumérico
+        return True
+    vowels = set("aeiouáéíóúâêôãõà")
+    if letters and len(letters) <= 10 and not any(c in vowels for c in letters):
+        return True  # sem vogais → impronunciável
+    return False
