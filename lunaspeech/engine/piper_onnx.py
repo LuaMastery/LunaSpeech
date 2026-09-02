@@ -34,28 +34,35 @@ _EOS = "$"   # fim de utterance
 _PAD = "_"   # separador/padding entre fonemas
 
 
-# Contorno de pergunta: sobe o pitch progressivamente no fim da frase (tom de dúvida)
-_QUESTION_TAIL = 0.38   # fração final da frase que recebe o contorno
-_QUESTION_RISE = 1.17   # elevação máxima do pitch (~+2,7 semitons)
+# Contorno de pergunta: pitch global mais alto + subida ACCELERADA no fim
+# (o tom de dúvida típico do português). A duração é compensada no length_scale.
+_QUESTION_TAIL = 0.50    # fração final da frase com subida de pitch
+_QUESTION_BASE = 1.05    # pitch global da pergunta (+5%)
+_QUESTION_RISE = 1.32    # pitch no fim da subida (+~5 semitons)
+_QUESTION_LS = 1.11      # compensação de duração (o contorno encurta o áudio)
 
 
 def _question_contour(audio: np.ndarray) -> np.ndarray:
-    """Aplica subida progressiva de pitch no final (intonação de pergunta)."""
+    """Aplica intonação de pergunta: voz levemente mais alta, subindo no fim."""
     n = audio.size
     if n < 1600:  # áudio muito curto: não mexe
         return audio
-    tail_start = int(n * (1.0 - _QUESTION_TAIL))
-    head = audio[:tail_start]
-    tail = audio[tail_start:]
+    head_end = int(n * (1.0 - _QUESTION_TAIL))
+    head, tail = audio[:head_end], audio[head_end:]
+    # cabeça: pitch global +5%
+    h = head.size
+    h_out = max(2, int(h / _QUESTION_BASE))
+    new_head = np.interp(np.linspace(0, h - 1, h_out), np.arange(h), head)
+    # cauda: fator sobe de BASE até RISE com aceleração (curva quadrática)
     m = tail.size
-    avg = (1.0 + _QUESTION_RISE) / 2.0
-    out_len = max(8, int(m / avg))
-    factors = np.linspace(1.0, _QUESTION_RISE, out_len)
+    out_len = max(8, int(m / ((_QUESTION_BASE + _QUESTION_RISE) / 2.0)))
+    frac = (np.arange(out_len) / max(1, out_len - 1)) ** 1.6
+    factors = _QUESTION_BASE + (_QUESTION_RISE - _QUESTION_BASE) * frac
     positions = np.cumsum(factors)
     positions -= positions[0]
     idx = np.clip(positions.astype(np.int64), 0, m - 1)
-    new_tail = tail[idx].astype(audio.dtype)
-    return np.concatenate([head, new_tail])
+    new_tail = tail[idx]
+    return np.concatenate([new_head.astype(audio.dtype), new_tail.astype(audio.dtype)])
 
 
 class PiperOnnxEngine(TTSEngine):
@@ -173,13 +180,16 @@ class PiperOnnxEngine(TTSEngine):
             ids = self._phonemes_to_ids(sentence_phonemes)
             if len(ids) < 3:
                 continue
+            # pergunta? aplica intonação ascendente (tom de dúvida)
+            last = next((p for p in reversed(sentence_phonemes) if p != " "), "")
+            is_question = last == "?"
+            if is_question:
+                ls = ls * _QUESTION_LS  # compensa o encurtamento do contorno
             audio = self._run_session(
                 ids, length_scale=ls, noise_scale=ns, noise_w=nw, speaker=speaker
             )
             if audio.size:
-                # pergunta? aplica intonação ascendente (tom de dúvida)
-                last = next((p for p in reversed(sentence_phonemes) if p != " "), "")
-                if last == "?":
+                if is_question:
                     audio = _question_contour(audio)
                 yield AudioChunk(audio=audio, sample_rate=self.sample_rate)
 

@@ -95,3 +95,47 @@ def test_emotions_end_to_end():
     assert r_triste.audio.size > r_neutro.audio.size      # triste mais lenta
     assert r_raivoso.audio.size < r_neutro.audio.size     # raivoso mais rápida
     assert abs(r_raivoso.audio).max() > abs(r_triste.audio).max()  # mais forte
+
+
+def test_shouting_not_spelled():
+    """GRITO (sequência de palavras em CAPS) NÃO é soletrado — v0.11.1."""
+    from lunaspeech.text.normalize import normalize_text as n
+    assert n("EU ODEIO ISSO") == "EU ODEIO ISSO"
+    assert n("EU ODEIO ISSO!!!") == "EU ODEIO ISSO!!!"
+    assert n("PARA TUDO AGORA") == "PARA TUDO AGORA"
+
+
+def test_isolated_caps_with_vowels_not_spelled():
+    """CAPS isolada com vogais = ênfase (fala como palavra), não sigla."""
+    from lunaspeech.text.normalize import normalize_text as n
+    assert n("ISSO é demais") == "ISSO é demais"
+    assert n("EU não aguento") == "EU não aguento"
+
+
+def test_true_acronyms_still_spelled():
+    from lunaspeech.text.normalize import normalize_text as n
+    assert n("Meu CPF") == "Meu cê pê éfi"
+    assert "érri gê" in n("CNPJ e RG")
+    assert n("IBGE divulgou").startswith("i bê gê éi")
+    assert n("MP3") == "êmi pê três"
+
+
+def test_numbers_not_treated_as_acronyms():
+    from lunaspeech.text.normalize import normalize_text as n
+    assert n("1.234") == "mil duzentos e trinta e quatro"
+    assert n("Em 2026") == "Em dois mil e vinte e seis"
+
+
+@pytest.mark.skipif(not HAS_EN, reason="modelo en-test ausente")
+def test_question_contour_clearly_rises_e2e():
+    import numpy as np
+    from lunaspeech import LunaSpeech
+    tts = LunaSpeech(voice="en-test", models_dir=str(REPO / "models"))
+
+    def zcr_tail(a):
+        seg = a[int(len(a) * 0.85):]
+        return float(np.mean(np.diff(np.sign(seg)) != 0))
+
+    rq = tts.synthesize("Tudo bem com voce?", tone="neutro")
+    ra = tts.synthesize("Tudo bem com voce.", tone="neutro")
+    assert zcr_tail(rq.audio) > zcr_tail(ra.audio) * 1.10  # sobe no fim

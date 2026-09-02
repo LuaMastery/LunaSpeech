@@ -123,7 +123,7 @@ def _synthesize_play_only(tts, text: str, rate: float, tone: str, mode: str = "f
     return 0
 
 
-def _startup_status(voice: str, models_dir: Optional[str]) -> None:
+def _startup_status(voice: str, models_dir: Optional[str], cfg_spell_mode: str = "auto") -> None:
     from .text.phonemize import available_backend
     from . import voices as _v
     ui.hr()
@@ -138,6 +138,8 @@ def _startup_status(voice: str, models_dir: Optional[str]) -> None:
     (ui.success if present else ui.warn)(
         f"voz '{voice}': pronta" if present else f"voz '{voice}': será baixada ao testar fala")
     ui.success(f"versão: {__version__}")
+    if cfg_spell_mode == "on":
+        ui.warn("soletração: SEMPRE ligada (todo texto será soletrado)")
     ui.hr()
 
 
@@ -191,10 +193,13 @@ def _menu_test(cfg: dict, models_dir: Optional[str]) -> None:
         ui.warn("Texto vazio.")
         return
     # soletração automática (config: auto | on | off)
-    if _should_spell(text, cfg.get("spell_mode", "auto")):
+    spell_mode = cfg.get("spell_mode", "auto")
+    if spell_mode == "on":
+        ui.warn("Soletração SEMPRE ligada (Configurações → Soletração → automática).")
+    if _should_spell(text, spell_mode):
         from .text.numbers import spell_words
         text = spell_words(text)
-        ui.info("Soletrando automaticamente (detectado).")
+        ui.info("Soletrando o texto...")
     voice, rate, tone = cfg["voice"], cfg["rate"], cfg["tone"]
     try:
         tts = _load_tts(voice, models_dir)
@@ -509,7 +514,7 @@ def interactive(voice: str, rate: float, models_dir: Optional[str], cfg: dict) -
     while True:
         ui.clear()
         ui.banner(__version__)
-        _startup_status(cfg["voice"], models_dir)
+        _startup_status(cfg["voice"], models_dir, cfg.get("spell_mode", "auto"))
         idx = ui.select_menu("O que você quer fazer?", [
             ("Testar fala", "digite um texto e ouça"),
             ("Buscar atualizações", "verifica nova versão no GitHub"),

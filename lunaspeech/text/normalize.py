@@ -184,8 +184,22 @@ def _temp_repl(m: re.Match) -> str:
 
 
 # --------------------------------------------------------------------- siglas
+# Uma palavra em MAIÚSCULAS só é soletrada se parecer sigla DE VERDADE.
+# Sequências de 2+ palavras em maiúsculas = GRITO/ÊNFASE (não soletra) —
+# ex.: "EU ODEIO ISSO" é raiva, não três siglas.
 _PRONOUNCE_AS_WORD = {"COVID", "SARSCOV", "NASA", "ONU", "UNESCO", "OTAN", "TIKTOK"}
-_ACRONYM_RE = re.compile(r"\b(?P<tok>[A-Z]{2,}(?:[A-Z\d]*[A-Z\d])?(?:-\d+)?)\b")
+_CAPS_RUN_RE = re.compile(  # cada palavra do run exige ao menos UMA letra
+    r"(?=[A-ZÀ-Ý0-9]*[A-ZÀ-Ý])[A-ZÀ-Ý0-9]{2,}(?:-\d+)?"
+    r"(?:[ \t]+(?=[A-ZÀ-Ý0-9]*[A-ZÀ-Ý])[A-ZÀ-Ý0-9]{2,}(?:-\d+)?)*"
+)
+_VOWELS_UPPER = set("AEIOUÁÉÍÓÚÂÊÔÃÕÀÜ")
+# siglas com vogais que devem ser soletradas (fora da lista, caps com vogais
+# são tratadas como ênfase e faladas como palavra: "ISSO", "ODEIO", "EU")
+_KNOWN_ACRONYMS = {
+    "IBGE", "ONU", "USP", "UFRJ", "UFMG", "UFRGS", "UNESP", "UNICAMP", "PUC",
+    "MEC", "INSS", "OMS", "OEA", "OTAN", "UNESCO", "IP", "UV", "ID", "IR",
+    "IGPM", "IPCA", "SELIC",
+}
 
 
 def _spell_token(tok: str) -> str:
@@ -207,12 +221,28 @@ def _spell_token(tok: str) -> str:
     return " ".join(out)
 
 
-def _acronym_repl(m: re.Match) -> str:
-    tok = m["tok"]
-    base = tok.split("-")[0]
-    if base in _PRONOUNCE_AS_WORD:
-        return tok.lower()
-    return _spell_token(tok)
+def _is_true_acronym(tok: str) -> bool:
+    """Palavra em CAPS isolada: é sigla (soletra) ou ênfase/grito (fala)?"""
+    if tok in _PRONOUNCE_AS_WORD:
+        return False  # lê como palavra
+    if any(c.isdigit() for c in tok):
+        return True           # MP3, COVID-19
+    if not any(c in _VOWELS_UPPER for c in tok):
+        return True           # CPF, CNPJ, PM (sem vogais)
+    return tok in _KNOWN_ACRONYMS  # IBGE, ONU... (com vogais, mas é sigla)
+
+
+def _expand_acronyms(text: str) -> str:
+    def repl(m: re.Match) -> str:
+        run = m.group(0)
+        words = run.split()
+        if len(words) >= 2:
+            return run  # sequência de caps = grito/ênfase -> fala normalmente
+        tok = words[0]
+        if _is_true_acronym(tok):
+            return _spell_token(tok)
+        return run  # caps isolada com vogais -> ênfase -> fala como palavra
+    return _CAPS_RUN_RE.sub(repl, text)
 
 
 # -------------------------------------------------------------- números (geral)
@@ -232,7 +262,7 @@ def normalize_text(text: str) -> str:
     text = _DATE_RE.sub(_date_repl, text)
     text = _TIME_RE.sub(_time_repl, text)
     text = _TIME_H_RE.sub(_time_h_repl, text)
-    text = _ACRONYM_RE.sub(_acronym_repl, text)
+    text = _expand_acronyms(text)
     text = _TEMP_RE.sub(_temp_repl, text)
     text = _ORDINAL_RE.sub(_ordinal_repl, text)
     text = _UNITS_RE.sub(_unit_repl, text)
